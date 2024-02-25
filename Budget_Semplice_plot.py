@@ -1,9 +1,13 @@
 import pandas as pd
 import datetime as dt
 import os
+import math
 import glob
 import plotly.graph_objects as go
 import numpy as np
+import plotly.express as px
+import plotly.subplots as sp
+
 
 # Ottieni i nomi dei file CSV nella tua directory
 path = 'C:\\Users\\Davidde\\Downloads\\Telegram Desktop\\Budget semplice'
@@ -81,19 +85,60 @@ def create_plot(x,y,name_trace,name_graph,overlap,y1,name_trace_1):
     fig.show()
     return fig
 
+def create_subplot(x, y, y1, name_trace, name_trace_1, name_graph, overlap):
+    # Creazione di un oggetto subplots
+    subplots = sp.make_subplots(rows=1, cols=2, specs=[[{'type': 'scatter'}, {'type': 'scatter'}]])
+
+    # Aggiungi i valori al grafico
+    if overlap:
+        subplots.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=f'{name_trace}'), row=1, col=1)
+        subplots.add_trace(go.Scatter(x=x, y=y1, mode='lines+markers', name=f'{name_trace_1}'), row=1, col=2)
+    else:
+        subplots.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=f'{name_trace}'), row=1, col=1)
+
+    # Imposta le etichette degli assi e il titolo
+    subplots.update_layout(
+        title=f'{name_graph}',
+        xaxis_title=f'09.2021 - {month}.{year}',
+        yaxis_title='',
+        legend_title='Legenda',
+        hovermode="x"
+    )
+
+    # Mostra il grafico
+    subplots.show()
+
+    return subplots
+
+def reddito_annuo(reference_year,reference_month,path):
+    date_list_annuo     = pd.date_range(start=f'{reference_year-1}-{reference_month}',end =f'{reference_year}-{reference_month}',freq='MS')
+    reddito_values      = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=1)
+    initial_date_record = pd.to_datetime('2021-09-01')
+    start_date          = pd.to_datetime(date_list_annuo[0])
+    try:
+            if initial_date_record <= start_date:
+                delta = (start_date - initial_date_record)
+                delta_in_months = delta.days / (30 if reference_year % 4 == 0 and (reference_year % 100 != 0 or reference_year % 400 == 0) else 31)
+                delta_in_months_rounded = math.floor(delta_in_months + 0.5) if delta_in_months % 1 >= 0.5 else math.ceil(delta_in_months - 0.5) if delta_in_months % 1 < 0.5 else delta_in_months
+    except ValueError:
+            print(f"Impossibile accedere a {values} in float.")
+    reddito_annuo = np.sum(reddito_values[delta_in_months_rounded:delta_in_months_rounded+11])
+    return reddito_annuo
 # Time Informations
 month,year = month_year()
 
 # Crea una lista di date dal settembre 2021 fino al mese e all'anno correnti
 date_list = pd.date_range(start='2021-09', end=f'{year}-{month}', freq='MS')
-
+reddito_annuo = reddito_annuo(reference_year=2024,reference_month=1,path=path)
 # Valore finale
 values = collect_data_from_list_csv(path,file_name='Netto',wanted_regexp='Reddito meno spese',scaling_factor=1)
 avg_values = dynamic_avg(values)
-reddito_values = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=0.001)
+reddito_values = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=1)
 reddito_avg_values = dynamic_avg(reddito_values)
 # Calcola la differenza tra ogni valore e il precedente
 diff = np.diff(reddito_values)
+# Rimuovere l'elemento di posizione 0
+diff = np.squeeze(diff)
 # Calcola il tasso di crescita
 growth_rate = diff / reddito_values[:-1]
 # Calcola il tasso di crescita medio
