@@ -21,7 +21,7 @@ def month_year():
     now = dt.datetime.now()
     return now.month, now.year
 
-def collect_data_from_list_csv(path,file_name,wanted_regexp):
+def collect_data_from_list_csv(path,file_name,wanted_regexp,scaling_factor):
     filenames,number_sample = collect_file(path,file_name)
     # Crea una lista vuota per i valori
     values_collected = []
@@ -36,7 +36,7 @@ def collect_data_from_list_csv(path,file_name,wanted_regexp):
                 collected_data = float(collected_data[1:]) * -1
             else:
                 collected_data = float(collected_data)
-            values_collected.append(collected_data)
+            values_collected.append(collected_data*scaling_factor)
         except ValueError:
             print(f"Impossibile convertire {collected_data} in float.")
     return values_collected
@@ -62,17 +62,35 @@ def dynamic_avg(values):
             print(f"Impossibile accedere a {values} in float.")
     return avg_values
 
+def create_plot(x,y,name_trace,name_graph,overlap,y1,name_trace_1):
+    fig  = go.Figure()
+    # Aggiungi i valori al grafico
+    if (overlap):
+     fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=f'{name_trace}'))
+     fig.add_trace(go.Scatter(x=x, y=y1, mode='lines+markers', name=f'{name_trace_1}'))
+    else :
+     fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=f'{name_trace}'))   
+    # Imposta le etichette degli assi e il titolo
+    fig.update_layout(
+    title=f'{name_graph}',
+    xaxis_title=f'09.2021 - {month}.{year}',
+    yaxis_title='',
+    legend_title='Legenda',
+    hovermode="x"
+    )
+    fig.show()
+    return fig
+
 # Time Informations
 month,year = month_year()
 
 # Crea una lista di date dal settembre 2021 fino al mese e all'anno correnti
 date_list = pd.date_range(start='2021-09', end=f'{year}-{month}', freq='MS')
 
-
 # Valore finale
-values = collect_data_from_list_csv(path,file_name='Netto',wanted_regexp='Reddito meno spese')
+values = collect_data_from_list_csv(path,file_name='Netto',wanted_regexp='Reddito meno spese',scaling_factor=1)
 avg_values = dynamic_avg(values)
-reddito_values = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio')
+reddito_values = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=0.001)
 reddito_avg_values = dynamic_avg(reddito_values)
 # Calcola la differenza tra ogni valore e il precedente
 diff = np.diff(reddito_values)
@@ -81,54 +99,5 @@ growth_rate = diff / reddito_values[:-1]
 # Calcola il tasso di crescita medio
 average_growth_rate = np.mean(growth_rate)
 
-#### Generazione Grafici ####
-
-fig  = go.Figure()
-fig1 = go.Figure()
-fig2 = go.Figure()
-
-# Aggiungi i valori al grafico
-fig.add_trace(go.Scatter(x=date_list, y=values, mode='lines+markers', name='Reddito meno Spese'))
-# Aggiungi la media al grafico
-fig.add_trace(go.Scatter(x=date_list, y=avg_values, mode='lines+markers', name='Media Reddito meno Spese'))
-# Aggiungi il reddito al grafico
-fig2.add_trace(go.Scatter(x=date_list, y=reddito_values, mode='lines+markers', name='Reddito'))
-# Aggiungi il reddito al grafico
-fig2.add_trace(go.Scatter(x=date_list, y=reddito_avg_values, mode='lines+markers', name='Media Reddito a 2 mesi'))
-# Aggiungi la derivata al grafico
-fig1.add_trace(go.Scatter(x=date_list, y=growth_rate, mode='lines+markers', name='Growth_rate Reddito'))
-
-
-# Imposta le etichette degli assi e il titolo
-fig.update_layout(
-    title='Reddito Meno Spese',
-    xaxis_title=f'09.21 - {month}.{year}',
-    yaxis_title='',
-    legend_title='Legenda',
-    hovermode="x"
-)
-
-# Imposta le etichette degli assi e il titolo
-fig1.update_layout(
-    title='Growth Rate Salary',
-    xaxis_title=f'09.21 - {month}.{year}',
-    yaxis_title='',
-    legend_title='Legenda',
-    hovermode="x"
-)
-
-# Imposta le etichette degli assi e il titolo
-fig2.update_layout(
-    title='Reddito',
-    xaxis_title=f'09.21 - {month}.{year}',
-    yaxis_title='',
-    legend_title='Legenda',
-    hovermode="x"
-)
-
-# Mostra il grafico
-fig.show()
-fig1.show()
-fig2.show()
-################
-
+fig  = create_plot(x=date_list,y=values,name_graph='Reddito meno spese',name_trace='Grafico Risparmio',overlap = 1,y1=avg_values,name_trace_1='Media Reddito meno Spese')
+fig1 = create_plot(x=date_list,y=reddito_values,name_graph='Stipendio',name_trace='Stipendio Percepito k€',overlap = 1,y1=growth_rate,name_trace_1='Grothw_rate')
