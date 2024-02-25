@@ -121,9 +121,10 @@ def reddito_annuo(reference_year,reference_month,path):
                 delta_in_months = delta.days / (30 if reference_year % 4 == 0 and (reference_year % 100 != 0 or reference_year % 400 == 0) else 31)
                 delta_in_months_rounded = math.floor(delta_in_months + 0.5) if delta_in_months % 1 >= 0.5 else math.ceil(delta_in_months - 0.5) if delta_in_months % 1 < 0.5 else delta_in_months
     except ValueError:
-            print(f"Impossibile accedere a {values} in float.")
+            print(f"Impossibile accedere a {reddito_values} in float.")
     reddito_annuo = np.sum(reddito_values[delta_in_months_rounded:delta_in_months_rounded+11])
     return reddito_annuo
+
 # Time Informations
 month,year = month_year()
 
