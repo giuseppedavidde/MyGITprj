@@ -43,7 +43,7 @@ def collect_data_from_list_csv(path,file_name,wanted_regexp,scaling_factor):
             values_collected.append(collected_data*scaling_factor)
         except ValueError:
             print(f"Impossibile convertire {collected_data} in float.")
-    return values_collected
+    return values_collected,number_sample
 
 def simple_mean(previous,current):
     avg = float ((previous + current)/2)
@@ -110,11 +110,11 @@ def create_subplot(x, y, y1, name_trace, name_trace_1, name_graph, overlap):
 
     return subplots
 
-def reddito_annuo(reference_year,reference_month,path):
-    date_list_annuo     = pd.date_range(start=f'{reference_year-1}-{reference_month}',end =f'{reference_year}-{reference_month}',freq='MS')
-    reddito_values      = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=1)
-    initial_date_record = pd.to_datetime('2021-09-01')
-    start_date          = pd.to_datetime(date_list_annuo[0])
+def reddito_annuo(reference_year,reference_month,path,scaling_factor):
+    date_list_annuo              = pd.date_range(start=f'{reference_year-1}-{reference_month}',end =f'{reference_year}-{reference_month}',freq='MS')
+    reddito_values,number_months = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=scaling_factor)
+    initial_date_record          = pd.to_datetime('2021-09-01')
+    start_date                   = pd.to_datetime(date_list_annuo[0])
     try:
             if initial_date_record <= start_date:
                 delta = (start_date - initial_date_record)
@@ -122,28 +122,47 @@ def reddito_annuo(reference_year,reference_month,path):
                 delta_in_months_rounded = math.floor(delta_in_months + 0.5) if delta_in_months % 1 >= 0.5 else math.ceil(delta_in_months - 0.5) if delta_in_months % 1 < 0.5 else delta_in_months
     except ValueError:
             print(f"Impossibile accedere a {reddito_values} in float.")
-    reddito_annuo = np.sum(reddito_values[delta_in_months_rounded:delta_in_months_rounded+11])
-    return reddito_annuo
+    reddito_annuo_result = np.sum(reddito_values[delta_in_months_rounded:delta_in_months_rounded+11])
+    return reddito_annuo_result
+
+def numero_anni(number_samples):
+    numero_anni = number_samples // 12
+    return numero_anni
+
+def reddito_annuo_totale(number_samples,scaling_factor):
+    numero_anni_osservati = numero_anni(number_samples=number_samples)
+    reddito_diviso_per_anni = []
+    growth_rate = []
+    average_growth_rate = []
+    start_ref_year = 2022
+    ref_month = 9
+    date_list = pd.date_range(start=f'{start_ref_year-1}-{ref_month}', end=f'{start_ref_year-1+numero_anni_osservati}-{ref_month}', freq='A')
+    for i in range(numero_anni_osservati):
+        redd_obs_year = reddito_annuo(reference_year=start_ref_year+i,reference_month=ref_month,path=path,scaling_factor=scaling_factor)
+        reddito_diviso_per_anni.append(redd_obs_year)
+    # Calcola la differenza tra ogni valore e il precedente
+    diff = np.diff(reddito_diviso_per_anni)
+    # Rimuovere l'elemento di posizione 0
+    diff = np.squeeze(diff)
+    # Calcola il tasso di crescita
+    growth_rate = diff / reddito_diviso_per_anni[:-1]
+    # Calcola il tasso di crescita medio
+    average_growth_rate = np.mean(growth_rate)    
+    return reddito_diviso_per_anni,growth_rate,average_growth_rate,date_list
 
 # Time Informations
 month,year = month_year()
 
 # Crea una lista di date dal settembre 2021 fino al mese e all'anno correnti
 date_list = pd.date_range(start='2021-09', end=f'{year}-{month}', freq='MS')
-reddito_annuo = reddito_annuo(reference_year=2024,reference_month=1,path=path)
 # Valore finale
-values = collect_data_from_list_csv(path,file_name='Netto',wanted_regexp='Reddito meno spese',scaling_factor=1)
+values,number_months = collect_data_from_list_csv(path,file_name='Netto',wanted_regexp='Reddito meno spese',scaling_factor=1)
 avg_values = dynamic_avg(values)
-reddito_values = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=1)
+reddito_values,number_months = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=1)
 reddito_avg_values = dynamic_avg(reddito_values)
-# Calcola la differenza tra ogni valore e il precedente
-diff = np.diff(reddito_values)
-# Rimuovere l'elemento di posizione 0
-diff = np.squeeze(diff)
-# Calcola il tasso di crescita
-growth_rate = diff / reddito_values[:-1]
-# Calcola il tasso di crescita medio
-average_growth_rate = np.mean(growth_rate)
+reddito_diviso_per_anni,growth_rate,average_growth_rate,observed_years = reddito_annuo_totale(number_months,scaling_factor=0.001)
+
 
 fig  = create_plot(x=date_list,y=values,name_graph='Reddito meno spese',name_trace='Grafico Risparmio',overlap = 1,y1=avg_values,name_trace_1='Media Reddito meno Spese')
-fig1 = create_plot(x=date_list,y=reddito_values,name_graph='Stipendio',name_trace='Stipendio Percepito k€',overlap = 1,y1=growth_rate,name_trace_1='Grothw_rate')
+fig1 = create_plot(x=date_list,y=reddito_values,name_graph='Stipendio',name_trace='Stipendio Percepito k€',overlap = 0,y1 = 0, name_trace_1='')
+fig2 = create_plot(x=observed_years,y=reddito_diviso_per_anni,name_graph='Reddito annuo',name_trace='Reddito annuo',overlap = 1,y1=growth_rate,name_trace_1='Grothw_rate')
