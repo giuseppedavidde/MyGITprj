@@ -45,26 +45,42 @@ def collect_data_from_list_csv(path,file_name,wanted_regexp,scaling_factor):
             print(f"Impossibile convertire {collected_data} in float.")
     return values_collected,number_sample
 
-def simple_mean(previous,current):
-    avg = float ((previous + current)/2)
-    return avg
+def simple_mean(previous_avg, new_value, n):
+    # You need to define this function for computing the new average.
+    # Assuming `previous_avg` is the average of the first `n-1` items,
+    # `new_value` is the nth item, and `n` is the total count,
+    # the new average will be computed as follows:
+    return ((previous_avg * (n - 1)) + new_value) / n
 
 def dynamic_avg(values):
-    # Media Dinamica
+    # This function calculates the dynamic average of a list of values.
     avg_values = []
+    avg_intermediate = []
 
-    for i in range(len(values)):
-        try:
-            if i == len(values):
-                avg_intermediate = simple_mean(values[i],values[i])
-            if i > 0:
-                avg_intermediate = simple_mean(values[i-1],values[i])
-            else:
-                avg_intermediate = simple_mean(values[i],values[i])
-            avg_values = np.append(avg_values,avg_intermediate)
-        except ValueError:
-            print(f"Impossibile accedere a {values} in float.")
-    return avg_values
+    for i, value in enumerate(values):
+        if i == 0:
+            # The average of the first element is the element itself.
+            new_avg = value
+        else:
+            # Compute the new average based on the previous one.
+            new_avg = simple_mean(avg_intermediate[i-1], value, i+1)
+        
+        # Append the new average to the intermediate list.
+        avg_intermediate.append(new_avg)
+
+        # Append the new average to the final list of averages.
+        avg_values.append(new_avg)
+
+    # Convert the list of averages to a numpy array.
+    return np.array(avg_values)
+
+def sum(values):
+    sum_value = 0
+    sum_value_list = []
+    for i, value in enumerate(values):
+        sum_value += value
+        sum_value_list.append(sum_value)
+    return sum_value_list,sum_value
 
 def create_plot(x,y,name_trace,name_graph,overlap,y1,name_trace_1):
     fig  = go.Figure()
@@ -164,13 +180,28 @@ month,year = month_year()
 # Crea una lista di date dal settembre 2021 fino al mese e all'anno correnti
 date_list = pd.date_range(start='2021-09', end=f'{year}-{month}', freq='MS')
 # Valore finale
-values,number_months = collect_data_from_list_csv(path,file_name='Netto',wanted_regexp='Reddito meno spese',scaling_factor=1)
-avg_values = dynamic_avg(values)
-reddito_values,number_months = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Stipendio',scaling_factor=1)
-reddito_avg_values = dynamic_avg(reddito_values)
+values_collect,number_months = collect_data_from_list_csv(path,file_name='Netto',wanted_regexp='Reddito meno spese',scaling_factor=1)
+avg_values = dynamic_avg(values=values_collect)
+reddito_values,number_months = collect_data_from_list_csv(path,file_name='Reddito',wanted_regexp='Reddito totale',scaling_factor=1)
+reddito_avg_values = dynamic_avg(values=reddito_values)
 reddito_diviso_per_anni,growth_rate,average_growth_rate,observed_years = reddito_annuo_totale(number_months,scaling_factor=1)
+spese_collect,number_months = collect_data_from_list_csv(path,file_name='Spese',wanted_regexp='Spese totali',scaling_factor=1)
+investment_collect,number_months = collect_data_from_list_csv(path,file_name='Spese',wanted_regexp='Investimenti',scaling_factor=1)
+spese_collect_avg_values = dynamic_avg(values=spese_collect)
+investment_collect_avg_values = dynamic_avg(values=investment_collect)
+investement_total_list,investment_total = sum(investment_collect)
+risparmio_total_list,risparmio_total = sum(values_collect)
+spese_minus_investment_values = spese_collect - investment_collect
+spese_minus_investment_avg_values = spese_collect_avg_values - investment_collect_avg_values
+total_expenses_list,total_expenses = sum(spese_minus_investment_values)
+annual_expenses = (total_expenses/number_months)*12
+FI = annual_expenses * 25
 
 
-fig  = create_plot(x=date_list,y=values,name_graph='Reddito meno spese',name_trace='Grafico Risparmio',overlap = 1,y1=avg_values,name_trace_1='Media Reddito meno Spese')
-fig1 = create_plot(x=date_list,y=reddito_values,name_graph='Stipendio',name_trace='Stipendio Percepito k€',overlap = 0,y1 = 0, name_trace_1='')
+
+fig  = create_plot(x=date_list,y=values_collect,name_graph='Reddito meno spese',name_trace='Grafico Risparmio',overlap = 1,y1=avg_values,name_trace_1='Media Reddito meno Spese')
+fig1 = create_plot(x=date_list,y=reddito_values,name_graph='Stipendio',name_trace='Stipendio Percepito k€',overlap = 1,y1 = reddito_avg_values, name_trace_1='Stipendio Medio')
 fig2 = create_plot(x=observed_years,y=reddito_diviso_per_anni,name_graph='Reddito annuo',name_trace='Reddito annuo',overlap = 1,y1=growth_rate,name_trace_1='Grothw_rate')
+fig3 = create_plot(x=date_list,y=spese_collect,name_graph='Spese per mese',name_trace='Spese Mensili',overlap = 1,y1=spese_collect_avg_values,name_trace_1='Spese Medie Mensili')
+fig4 = create_plot(x=date_list,y=spese_minus_investment_values,name_graph='Spese - Investimenti',name_trace='Spese - Investimenti Mensili',overlap = 1,y1=spese_minus_investment_avg_values,name_trace_1='Spese - Investimenti Medi')
+fig5 = create_plot(x=date_list,y=investement_total_list,name_graph='Investimenti',name_trace='Investimenti Mensili',overlap = 1,y1=risparmio_total_list,name_trace_1='Risparmio Mensili')
