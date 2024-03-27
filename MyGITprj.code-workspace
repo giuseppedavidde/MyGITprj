@@ -1,19 +1,10 @@
 {
-<<<<<<< HEAD
-	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"path": ".."
-		}
-	],
-	"settings": {}
-=======
     "folders": [
         {
             "path": ".."
+        },
+        {
+            "path": "../../Downloads/Telegram Desktop"
         }
     ]
->>>>>>> main
 }
