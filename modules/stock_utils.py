@@ -33,7 +33,7 @@ def month_year():
     """ 
     now = dt.datetime.now()
     return now.day, now.month, now.year
-
+    
 def collect_data_from_github(github_raw_url):
     """
     Collect data from a GitHub raw URL into a pandas DataFrame.
