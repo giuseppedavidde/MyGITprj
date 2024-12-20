@@ -1,6 +1,7 @@
 from modules import general_utils
 from modules.general_utils import glob, os, np, pd, dt
 #import pandas as pd
+#Check
 
 # Ottieni i nomi dei file CSV nella tua directory
 path = "C:\\Users\\Davidde\\Downloads\\Telegram Desktop\\Budget semplice"
