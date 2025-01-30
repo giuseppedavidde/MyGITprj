@@ -12,7 +12,7 @@ data_to_retrieve = [
     ("trans_id_collect", "Transaction ID"),
     ("date_collect", "Timestamp"),
     ("price_collect", "Price"),
-    ("amount_collect", "Amount")
+    ("amount_collect", "Amount"),
 
     
 
