@@ -11,9 +11,14 @@ path = "C:\\Users\\Davidde\\Downloads\\Telegram Desktop\\bitpanda-trades-2025-01
 data_to_retrieve = [
     ("trans_id_collect", "Transaction ID"),
     ("date_collect", "Timestamp"),
-    ("price_collect", "Price"),
-    ("amount_collect", "Amount"),
-
-    
-
+    ("asset_collect", "Asset"),
+    ("amount_fiat_collect", "Amount Fiat"),
+    ("amount_asset_collect", "Amount Asset"),
+    ("asset_market_price_collect", "Asset market price"),
+    ("fee_asset_collect","Fee"),
 ]
+
+data_collected = {
+    config[0]: collect_data_from_csv(path, config[1], config[2], scaling_factor=1)
+    for config in data_configurations
+}
