@@ -1,10 +1,14 @@
 from modules import general_utils
-from modules.general_utils import glob, os, np, pd, dt
+from modules.general_utils import Path,glob, os, np, pd, dt
 #import pandas as pd
-#Check
+
+
+def get_current_user():
+    return os.getlogin()
 
 # Ottieni i nomi dei file CSV nella tua directory
-path = "C:\\Users\\Davidde\\Downloads\\Telegram Desktop\\Budget semplice"
+path = ""
+
 
 def collect_file(path, name):
     """

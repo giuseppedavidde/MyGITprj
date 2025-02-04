@@ -5,6 +5,7 @@ import pandas as pd
 import glob
 import math
 import os
+from pathlib import Path
 
 ##Generic library to create plots
 import plotly.graph_objects as go
