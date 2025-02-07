@@ -57,7 +57,7 @@ def collect_numb_sample(path,file_name):
     filenames, number_sample = collect_file(path, file_name)
     return number_sample
 
-def collect_data_from_list_csv(path, file_name, wanted_regexp, scaling_factor):
+def collect_data_from_list_csv(path, multiple_files, file_name, wanted_regexp, scaling_factor):
     """
     Collects data from CSV files in the specified path that match the given file name
     and description, and scales the collected values by the scaling factor.
@@ -83,8 +83,13 @@ def collect_data_from_list_csv(path, file_name, wanted_regexp, scaling_factor):
     ValueError
         If a value cannot be converted to float, a message is printed.
     """
-
-    filenames, number_sample = collect_file(path, file_name)
+    if multiple_files :
+        filenames, number_sample = collect_file(path, file_name)
+    else :
+        filenames = [file_name] #List of a single file
+    
+    print(f"{filenames}")
+    
     data = []
 
     for filename in filenames:
@@ -105,7 +110,7 @@ def collect_data_from_list_csv(path, file_name, wanted_regexp, scaling_factor):
                 print(f"Nessun valore trovato per {wanted_regexp} in {filename}.")
     return np.array(data)
 
-def collect_data_from_csv(path, file_name, wanted_regexp, scaling_factor=1):
+def collect_data_from_csv(path, multiple_files, file_name, wanted_regexp, scaling_factor=1):
     """
     Collect data from a CSV file in the given path, with the given name pattern, and
     matching the given description pattern. The collected values are scaled by the
@@ -129,6 +134,7 @@ def collect_data_from_csv(path, file_name, wanted_regexp, scaling_factor=1):
     """
     data = collect_data_from_list_csv(
         path,
+        multiple_files=multiple_files,
         file_name=file_name,
         wanted_regexp=wanted_regexp,
         scaling_factor=scaling_factor
