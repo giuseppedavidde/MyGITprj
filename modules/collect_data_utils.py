@@ -1,5 +1,5 @@
 from modules import general_utils
-from modules.general_utils import Path,glob, os, np, pd, dt
+from modules.general_utils import Path, glob, os, np, pd, dt
 #import pandas as pd
 
 
@@ -18,6 +18,7 @@ def collect_file(path, name):
 
     Parameters
     ----------
+
     path : str
         The path to the directory containing the files to collect.
     name : str
@@ -25,6 +26,7 @@ def collect_file(path, name):
 
     Returns
     -------
+
     list
         A sorted list of the collected files.
     int
@@ -44,6 +46,7 @@ def collect_numb_sample(path,file_name):
 
     Parameters
     ----------
+
     path : str
         The path to the directory containing the files to collect.
     file_name : str
@@ -51,6 +54,7 @@ def collect_numb_sample(path,file_name):
 
     Returns
     -------
+
     int
         The number of collected files.
     """
@@ -64,6 +68,7 @@ def collect_data_from_list_csv(path, multiple_files, file_name, wanted_regexp, s
 
     Parameters
     ----------
+
     path : str
         The path to the directory containing the files to read.
     file_name : str
@@ -75,11 +80,13 @@ def collect_data_from_list_csv(path, multiple_files, file_name, wanted_regexp, s
 
     Returns
     -------
+
     np.ndarray
         An array of collected and scaled values.
 
     Raises
     ------
+
     ValueError
         If a value cannot be converted to float, a message is printed.
     """
@@ -118,6 +125,7 @@ def collect_data_from_csv(path, multiple_files, file_name, wanted_regexp, scalin
 
     Parameters
     ----------
+
     path : str
         The path to the directory containing the files.
     file_name : str
@@ -129,6 +137,7 @@ def collect_data_from_csv(path, multiple_files, file_name, wanted_regexp, scalin
 
     Returns
     -------
+
     np.ndarray
         An array of collected and scaled values.
     """
@@ -140,3 +149,65 @@ def collect_data_from_csv(path, multiple_files, file_name, wanted_regexp, scalin
         scaling_factor=scaling_factor
     )
     return data
+
+def collect_bitpanda_data(filepath):
+    """
+    Collects specific data from a Bitpanda CSV file.
+
+    Parameters
+    ----------
+
+    filepath : str
+        The path to the Bitpanda CSV file.
+
+    Returns
+    -------
+
+    dict
+        A dictionary containing the collected data.
+    """
+    try:
+        df = pd.read_csv(filepath, skiprows=6)
+    except pd.errors.EmptyDataError:
+        print(f"Error: The file {filepath} does not have enough rows to skip.")
+        return {}
+
+    # Lookup table for column indices
+    column_lut = {
+        "Transaction ID": 0,
+        "Timestamp": 1,
+        "Transaction Type": 2,
+        "Amount Fiat": 4,
+        "Amount Asset": 6,
+        "Asset": 7,
+        "Asset market price": 8,
+        "Fee": 12
+    }
+
+    data_to_retrieve = [
+        ("trans_id_collect", "Transaction ID"),
+        ("date_collect", "Timestamp"),
+        ("trans_type_collect", "Transaction Type"),
+        ("asset_collect", "Asset"),
+        ("amount_fiat_collect", "Amount Fiat"),
+        ("amount_asset_collect", "Amount Asset"),
+        ("asset_market_price_collect", "Asset market price"),
+        ("fee_asset_collect", "Fee"),
+    ]
+    
+    collected_data = {key: [] for key, _ in data_to_retrieve}
+    
+    for _, row in df.iterrows():
+        for key, column_name in data_to_retrieve:
+            column_index = column_lut[column_name]
+            collected_data[key].append(row[column_index])
+    
+    return collected_data
+
+def sort_data_by_asset(data,key_name):
+    sorted_data = {key: [] for key in data}
+    sorted_indices = sorted(range(len(data[key_name])), key=lambda k: data[key_name][k])
+    for i in sorted_indices:
+        for key in data:
+            sorted_data[key].append(data[key][i])
+    return sorted_data
