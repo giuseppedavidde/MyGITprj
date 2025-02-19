@@ -204,9 +204,9 @@ def collect_bitpanda_data(filepath):
     
     return collected_data
 
-def sort_data_by_asset(data,key_name):
+def sort_data_by_asset(data):
     sorted_data = {key: [] for key in data}
-    sorted_indices = sorted(range(len(data[key_name])), key=lambda k: data[key_name][k])
+    sorted_indices = sorted(range(len(data['asset_collect'])), key=lambda k: data['asset_collect'][k])
     for i in sorted_indices:
         for key in data:
             sorted_data[key].append(data[key][i])
