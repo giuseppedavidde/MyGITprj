@@ -1,0 +1,29 @@
+# --- Strumenti di Qualità del Codice (Development) ---
+
+# Formattazione automatica del codice (standard industriale)
+black
+
+# Controllo dello stile e ricerca errori di sintassi (Linting)
+flake8
+
+# Controllo statico dei tipi (fondamentale visto che usiamo dataclasses e type hints)
+mypy
+
+# Framework per i test (per testare i tuoi agent in futuro)
+pytest
+
+# --- Dipendenze AI ---
+google-generativeai
+
+# --- Gestione Variabili d'Ambiente ---
+python-dotenv
+
+# --- Dati Finanziari ---
+yfinance
+
+# --- Strumenti di Utilità ---
+pandas
+
+# --- Strumenti di Sviluppo ---
+requests
+beautifulsoup4
