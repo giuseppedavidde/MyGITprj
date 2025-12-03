@@ -40,6 +40,171 @@ financial-analysis-agents/
 └── requirements.txt        # Python dependencies
 ```
 
+## 🧩 Agents (Componenti e Scopi)
+
+Questa sezione descrive ciascun `agent` presente nella cartella `agents/`, il suo scopo, gli input attesi, l'output e note operative importanti.
+
+- `GrahamAgent`
+  - Scopo: Esegue l'analisi finanziaria secondo i principi di Benjamin Graham (margini, copertura interessi, liquidità, P/E, P/B, ecc.).
+  - Input: un oggetto `FinancialData` (dataclass) con i valori contabili e di mercato.
+  - Output: report testuale o struttura con i principali indicatori e un verdict sintetico.
+  - Note: I parametri soglia (es. interessi copertura, percentuale di debito) sono facilmente adattabili direttamente in `agents/graham.py`.
+
+- `DataBuilderAgent`
+  - Scopo: Estrarre e normalizzare dati finanziari da testo grezzo (bilanci, sezioni MD&A, tabelle) usando il provider AI.
+  - Input: stringa di testo grezzo (o dossier generato da `MarketDataAgent`).
+  - Output: dizionario compatibile con il costruttore `FinancialData` (es. `asdict(FinancialData(...))`).
+  - Note: Implementa regole precise per `long_term_debt` e `total_liabilities` e salva i file JSON in `/data`.
+
+- `MarketDataAgent`
+  - Scopo: Coordinatore (facade) per il flusso completo: download dati (Yahoo Finance) → summary AI → build dati → review → eventuale cross-check.
+  - Input: ticker (es. `AAPL`) e (opzionalmente) `GOOGLE_API_KEY` per chiamate AI.
+  - Output: dizionario finale dei dati finanziari validati (pronto per `FinancialData`).
+  - Note: Integra `SummaryAgent`, `DataBuilderAgent`, `ReviewAgent`, `ETFFinderAgent`, `CrossCheckAgent` per produrre un dossier robusto.
+
+- `SummaryAgent`
+  - Scopo: Generare un riassunto qualitativo e discorsivo del dossier finanziario (ruolo di "narratore").
+  - Input: testo/dossier finanziario.
+  - Output: stringa riassuntiva (max ~12 righe) focalizzata su business, trend utili, dividendi, salute finanziaria.
+
+- `ReviewAgent` (AuditAgent)
+  - Scopo: Eseguire un audit interno dei campi critici (policy "Zero Trust"). Segnala campi sospetti da validare.
+  - Input: `ticker` e oggetto `FinancialData`.
+  - Output: tupla `(report_text, suspicious_fields)` dove `suspicious_fields` è una lista di nomi di campi da verificare.
+  - Note: Fornisce la lista di campi che devono essere passati al `CrossCheckAgent`.
+
+- `CrossCheckAgent`
+  - Scopo: Validazione incrociata ibrida: usa `FinvizAgent` (dati strutturati) e, se necessario, ricerche web per confermare/correggere campi critici.
+  - Input: `ticker`, dati originali, lista di campi da controllare.
+  - Output: dizionario con correzioni suggerite per i campi verificati.
+
+- `ETFFinderAgent`
+  - Scopo: Individuare ETF che detengono il titolo dato; combina stime AI con dati reali (Yahoo) per stimare esposizione.
+  - Input: `ticker`, `sector` (opzionale).
+  - Output: lista di dizionari `{etf_ticker, etf_name, total_aum, weight_percentage, category}`.
+
+- `FinvizAgent`
+  - Scopo: Recuperare dati fondamentali strutturati (P/E, Total Debt, Book/sh, Dividend, ecc.) da Finviz come fonte primaria per il cross-check.
+  - Input: `ticker`.
+  - Output: dizionario con campi fondamentali mappati.
+
+- `AIProvider` / `ai_provider.py`
+  - Scopo: Wrapper per inizializzare e fornire accesso ai modelli AI (es. Google Gemini). Centralizza creazione di modelli in `json_mode` o `text`.
+  - Note: Usato da molti agent (DataBuilder, Summary, Review, CrossCheck, ETFFinder) per mantenere coerenza nelle chiamate.
+
+Se desideri un esempio d'uso programmatico rapido per testare un singolo agent:
+
+```python
+from agents import DataBuilderAgent
+
+builder = DataBuilderAgent(api_key='YOUR_KEY')
+raw = open('data/example_company.json').read()  # o testo grezzo
+result = builder.build_from_text(raw)
+print(result)
+```
+
+Questo flusso viene orchestrato automaticamente da `MarketDataAgent` se usi la modalità ticker in `main.py`.
+
+## 🔍 Esempi di Output
+
+Di seguito alcuni esempi sintetici di output che potresti vedere durante l'esecuzione degli agent.
+
+- Esempio di report sintetico prodotto da `GrahamAgent`:
+
+```
+--- GRAHAM ANALYSIS REPORT: ACME Corp. ---
+Profit Margin: 12.5% (Operating Income / Sales)
+Interest Coverage: 6.2x (Operating Income / Interest Charges)
+Current Ratio: 1.8 (Current Assets / Current Liabilities)
+Quick Ratio: 1.2 ((Current Assets - Inventory) / Current Liabilities)
+Book Value / Share: $42.15
+Price-to-Book: 1.8
+Debt Ratio: 22.5% (Total Liabilities / Capitalization)
+P/E Ratio: 13.7
+Earnings Yield: 7.3%
+
+Verdict: INVESTIMENTO CONSERVATIVO - Margine di sicurezza accettabile, debito sotto controllo.
+Recommendations: Monitorare trend utili trimestrali e confermare long_term_debt via CrossCheckAgent.
+```
+
+- Esempio di output da `DataBuilderAgent` (dizionario JSON-ready):
+
+```json
+{
+  "total_assets": 125000000.0,
+  "current_assets": 45000000.0,
+  "current_liabilities": 25000000.0,
+  "inventory": 5000000.0,
+  "intangible_assets": 2000000.0,
+  "total_liabilities": 55000000.0,
+  "long_term_debt": 12000000.0,
+  "preferred_stock": 0.0,
+  "common_stock": 30000000.0,
+  "surplus": 5000000.0,
+  "sales": 98000000.0,
+  "operating_income": 12250000.0,
+  "net_income": 9000000.0,
+  "interest_charges": 200000.0,
+  "preferred_dividends": 0.0,
+  "shares_outstanding": 1000000.0,
+  "current_market_price": 85.0
+}
+```
+
+## 🧩 Estendere / Creare un Nuovo Agent (Template)
+
+Per aggiungere un nuovo `agent` segui questa procedura consigliata e usa il template minimale qui sotto.
+
+1. Crea un nuovo file in `agents/` (es. `my_agent.py`).
+2. Implementa una classe con un'interfaccia chiara: `__init__(...)`, metodi pubblici come `run(...)` o `process(...)`.
+3. Documenta input, output e possibili eccezioni nel docstring della classe.
+4. Aggiorna `agents/__init__.py` per esportare il nuovo agent (aggiungilo a `__all__`).
+5. Aggiungi test unitari in una cartella `tests/` (es. `tests/test_my_agent.py`).
+
+Template minimale per un nuovo agent:
+
+```python
+"""Esempio di nuovo Agent minimale."""
+from typing import Optional, Any
+
+class MyAgent:
+  """
+  Scopo: descrivi brevemente lo scopo dell'agent.
+
+  Input: descrivi l'input atteso.
+  Output: descrivi l'output prodotto.
+  """
+
+  def __init__(self, api_key: Optional[str] = None):
+    # Configurazioni e inizializzazione del provider AI / risorse
+    self.api_key = api_key
+
+  def run(self, payload: Any) -> Optional[Any]:
+    """Esegui l'operazione principale dell'agent.
+
+    - Valida l'input
+    - Esegui trasformazioni
+    - Restituisci un oggetto JSON-serializzabile o None in caso di errore
+    """
+    try:
+      # Logica principale
+      result = {"status": "ok", "data": payload}
+      return result
+    except (ValueError, TypeError) as e:
+      # Gestisci errori previsti
+      print(f"Errore durante l'esecuzione di MyAgent: {e}")
+      return None
+    except Exception:
+      # Non sopprimere eccezioni generiche: rialza dopo logging
+      raise
+```
+
+Consigli pratici:
+- Preferisci eccezioni specifiche invece di `except Exception`.
+- Aggiungi logging (modulo `logging`) invece di `print` per produzione.
+- Scrivi test che coprano casi buoni e casi di errore.
+- Mantieni input/output JSON-serializzabili per facilità di persistenza e cross-check.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
