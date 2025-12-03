@@ -2,15 +2,14 @@
 Modulo per l'interpretazione dei dati finanziari tramite AI.
 """
 import json
+import os
 from dataclasses import asdict
 from typing import Optional, Dict, Any
 from models.data_schema import FinancialData
 from .ai_provider import AIProvider
 
 class DataBuilderAgent:
-    """
-    Agente Builder con istruzioni raffinate sul Debito Finanziario.
-    """
+    """Costruisce un dizionario di dati finanziari da testo grezzo usando l'AI."""
     
     def __init__(self, api_key: Optional[str] = None):
         self.model = None
@@ -18,37 +17,40 @@ class DataBuilderAgent:
             self.provider = AIProvider(api_key)
             self.model = self.provider.get_model(json_mode=True)
         except Exception as e: # pylint: disable=broad-exception-caught
-            print(f"⚠️ Init DataBuilder fallita: {e}")
+            print(f"⚠️ Attenzione: Inizializzazione AI fallita in DataBuilder: {e}")
 
     def build_from_text(self, raw_text: str) -> Optional[Dict[str, Any]]:
-        """Costruisce un dizionario di dati finanziari da testo grezzo."""
+        """Estrae i dati finanziari dal testo grezzo e li restituisce come dizionario."""
         if not self.model:
+            print("❌ Errore: Modello AI non disponibile.")
             return None
 
-        print("🧠 L'Agente Builder sta isolando il Debito Finanziario dai dati...")
+        print("🧠 L'Agente Builder sta analizzando i criteri di 'L'Investitore Intelligente'...")
 
         prompt = f"""
-        Sei un esperto analista contabile "Graham-style". 
-        Estrai i dati TTM e Balance Sheet (MRQ).
+        Sei un esperto analista formato sui libri di Benjamin Graham.
+        Estrai i dati dal testo per popolare il JSON.
         
-        SCHEMA OUTPUT:
+        SCHEMA OUTPUT RICHIESTO:
         {{
             "total_assets": float, "current_assets": float, "current_liabilities": float,
             "inventory": float, "intangible_assets": float, "total_liabilities": float,
-            "long_term_debt": float,  // NUOVO CAMPO CRUCIALE
-            "preferred_stock": float, "common_stock": float, "surplus": float,
-            "sales": float, "operating_income": float, "net_income": float,
-            "interest_charges": float, "preferred_dividends": float,
-            "shares_outstanding": float, "current_market_price": float
+            "long_term_debt": float, "preferred_stock": float, "common_stock": float, 
+            "surplus": float, "sales": float, "operating_income": float, "net_income": float,
+            "interest_charges": float, "preferred_dividends": float, "shares_outstanding": float, 
+            "current_market_price": float,
+            
+            // NUOVI CAMPI STORICI (Stime basate sui dati presenti):
+            "eps_3y_avg": float,         // Media utile netto / azioni degli ultimi 3 anni
+            "earnings_growth_10y": bool, // True se utili oggi > utili di anni fa (trend positivo)
+            "dividend_history_20y": bool // True se sembra pagare dividendi regolarmente
         }}
 
-        REGOLE ESTRAZIONE:
-        1. **long_term_debt**: Cerca "Long Term Debt" o "Long Term Debt excluding Current Portion". 
-           NON includere "Total Liabilities". Se l'azienda è "Debt Free", metti 0.0.
-           (Nota: Leases/Affitti vanno in liabilities ma idealmente non in Long Term Debt finanziario, se separabili).
-        2. **total_liabilities**: Questa invece è la somma di TUTTO (Fornitori, Debiti, Affitti).
-        3. **Interest Charges**: Sempre valore assoluto.
-        4. **TTM**: Priorità ai dati TTM_CALCULATED per Income Statement.
+        REGOLE CRITICHE:
+        1. **Debito**: 'long_term_debt' deve essere SOLO il debito finanziario (Bonds/Prestiti). Escludi affitti/fornitori.
+        2. **Media 3 Anni**: Per 'eps_3y_avg', guarda la tabella storica nel testo. Fai una media approssimativa degli ultimi 3 anni di Net Income diviso le azioni attuali. Se hai solo TTM, usa quello.
+        3. **Dividendi**: Se vedi una storia di dividendi nel testo, imposta 'dividend_history_20y' a true.
+        4. **TTM**: Per i dati correnti (sales, income), usa TTM_CALCULATED.
 
         DOSSIER:
         {raw_text}
@@ -62,14 +64,18 @@ class DataBuilderAgent:
             validated_data = FinancialData(**data_dict)
             return asdict(validated_data)
 
+        except json.JSONDecodeError:
+            print("❌ Errore: L'AI non ha prodotto un JSON valido.")
+            return None
+        except TypeError as e:
+            print(f"❌ Errore Schema: Dati non conformi.\n{e}")
+            return None
         except Exception as e: # pylint: disable=broad-exception-caught
-            print(f"❌ Errore DataBuilder: {e}")
+            print(f"❌ Errore Generico AI in DataBuilder: {e}")
             return None
 
     def save_to_json(self, data: Dict[str, Any], filename: str):
         """Salva i dati finanziari in un file JSON."""
-        # (Codice salvataggio invariato...)
-        import os
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         file_path = os.path.join(base_dir, 'data', filename)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)

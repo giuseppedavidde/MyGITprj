@@ -1,11 +1,11 @@
-"""Definizione della struttura dati per i valori finanziari standardizzati."""
+"""Modello dati per l'analisi finanziaria con metriche storiche di 'L'Invest"""
 from dataclasses import dataclass
+
 
 @dataclass
 class FinancialData:
     """
-    Struttura dati standardizzata per i valori di bilancio.
-    Include distinzione tra Passività Totali e Debito Finanziario.
+    Struttura dati aggiornata per includere metriche storiche di 'L'Investitore Intelligente'.
     """
     # Stato Patrimoniale
     total_assets: float
@@ -14,7 +14,7 @@ class FinancialData:
     inventory: float
     intangible_assets: float
     total_liabilities: float
-    long_term_debt: float  # Solo debiti finanziari (Bonds, Mutui), esclusi fornitori/affitti
+    long_term_debt: float 
     
     # Capitale
     preferred_stock: float
@@ -28,15 +28,20 @@ class FinancialData:
     interest_charges: float
     preferred_dividends: float
     
+    # --- NUOVI CAMPI PER 'L'INVESTITORE INTELLIGENTE' ---
+    eps_3y_avg: float    # Utile per azione medio ultimi 3 anni 
+    earnings_growth_10y: bool # Ha mostrato crescita negli ultimi 10 anni? 
+    dividend_history_20y: bool # Ha pagato dividendi per 20 anni? 
+    # -----------------------------------------------------
+
     # Mercato
     shares_outstanding: float
     current_market_price: float
 
     def __post_init__(self):
-        """Validazione e pulizia automatica."""
-        # Fix segni
+        # Fix segni e valori
         self.interest_charges = abs(self.interest_charges)
         self.intangible_assets = abs(self.intangible_assets)
         self.current_market_price = abs(self.current_market_price)
         self.shares_outstanding = abs(self.shares_outstanding)
-        self.long_term_debt = abs(self.long_term_debt) 
+        self.long_term_debt = abs(self.long_term_debt)

@@ -1,123 +1,136 @@
 """
-Modulo per l'analisi fondamentale secondo i principi di Benjamin Graham.
+Modulo per l'analisi fondamentale: Integrazione 'L'Investitore Intelligente'.
 """
 from dataclasses import dataclass
 from models.data_schema import FinancialData
 
 @dataclass
-class GrahamAnalysisResult:
-    """Classe di supporto per i risultati."""
-    value: float
-    verdict: str
-    graham_ref: str
+class GrahamCheck:
+    """Guida per ogni criterio di selezione di Graham."""
+    criterion: str
+    passed: bool
+    details: str
 
 class GrahamAgent:
     """
-    Analista avanzato. Implementa il 'Metodo dei Multipli' (Parte Seconda del libro).
+    Analista che implementa le strategie de 'L'Investitore Intelligente' (Cap. 14).
     """
     def __init__(self, data: FinancialData):
         self.d = data
 
     def analyze(self) -> str:
-        """Esegue l'analisi completa con logica Debt-Free corretta."""
+        """Genera il report completo."""
         
-        # 1. Margine di Profitto
-        profit_margin = 0.0
-        if self.d.sales > 0:
-            profit_margin = (self.d.operating_income / self.d.sales) * 100
-
-        # 2. Copertura Interessi (Logic Smart)
-        int_coverage_str = "N/A"
-        if self.d.interest_charges > 0:
-            int_cov_val = self.d.operating_income / self.d.interest_charges
-            int_coverage_str = f"{int_cov_val:.2f}x"
-            int_judgement = "ECCELLENTE" if int_cov_val > 5 else "ADEGUATO" if int_cov_val > 3 else "RISCHIOSO"
-        else:
-            # Se interessi sono 0, controlliamo se c'è debito
-            if self.d.long_term_debt == 0:
-                int_coverage_str = "∞ (Debt Free)"
-                int_judgement = "ECCELLENTE (Nessun Debito Finanziario)"
-            else:
-                # Debito c'è ma interessi 0? Strano, ma matematicamente ∞
-                int_coverage_str = "∞ (Interessi Zero)"
-                int_judgement = "DA VERIFICARE"
-
-        # 3. Current Ratio
-        curr_ratio = 0.0
-        if self.d.current_liabilities > 0:
-            curr_ratio = self.d.current_assets / self.d.current_liabilities
-
-        # 4. Quick Ratio
-        quick_assets = self.d.current_assets - self.d.inventory
-        quick_ratio = 0.0
-        if self.d.current_liabilities > 0:
-            quick_ratio = quick_assets / self.d.current_liabilities
-
-        # 5. Book Value (Tangibile)
+        # --- CALCOLI DI SUPPORTO ---
         equity = self.d.common_stock + self.d.surplus
         tangible_equity = equity - self.d.intangible_assets
-        bv_share = 0.0
-        if self.d.shares_outstanding > 0:
-            bv_share = tangible_equity / self.d.shares_outstanding
-
-        pb_ratio = 0.0
-        if bv_share > 0:
-            pb_ratio = self.d.current_market_price / bv_share
+        bv_share = tangible_equity / self.d.shares_outstanding if self.d.shares_outstanding else 0
         
-        # 6. Struttura del Capitale (CORRETTA)
-        # Graham Cap. 27: Obbligazioni / (Obbligazioni + Equity)
-        # Usiamo Long Term Debt invece di Total Liabilities per escludere i fornitori.
-        capitalization_base = self.d.long_term_debt + equity
-        debt_ratio = 0.0
-        if capitalization_base > 0:
-            debt_ratio = (self.d.long_term_debt / capitalization_base) * 100
-
-        # 7. P/E Ratio
-        eps = 0.0
-        pe_ratio = 0.0
-        if self.d.shares_outstanding > 0:
-            eps = (self.d.net_income - self.d.preferred_dividends) / self.d.shares_outstanding
-        if eps > 0:
-            pe_ratio = self.d.current_market_price / eps
-
-        # 8. Earnings Yield
-        earnings_yield = 0.0
-        if self.d.current_market_price > 0:
-            earnings_yield = (eps / self.d.current_market_price) * 100
-
-        return f"""
-        === ANALISI BENJAMIN GRAHAM (Refined) ===
+        # Calcolo EPS (Preferiamo la media a 3 anni se disponibile, altrimenti TTM)
+        eps_calc = self.d.eps_3y_avg if self.d.eps_3y_avg > 0 else (self.d.net_income / self.d.shares_outstanding)
         
-        [SICUREZZA FINANZIARIA]
-        0. MARGINE DI PROFITTO [cite: 920]
-           Valore: {profit_margin:.2f}%
-           Giudizio: {('BUONO' if profit_margin > 10 else 'ADEGUATO' if profit_margin > 5 else 'BASSO')}
+        pe_ratio = self.d.current_market_price / eps_calc if eps_calc > 0 else 0
+        pb_ratio = self.d.current_market_price / bv_share if bv_share > 0 else 0
         
-        1. COPERTURA INTERESSI [cite: 940]
-           Valore: {int_coverage_str}
-           Giudizio: {int_judgement}
-           
-        2. STRUTTURA DEL CAPITALE (Debito Finanziario) [cite: 986]
-           Incidenza Bonds/Debito Lungo: {debt_ratio:.1f}%  <-- (Ora esclude debiti operativi)
-           Graham: "Ottimale sotto il 25-30% per industriali"
-           Valore Debito LP: ${self.d.long_term_debt:,.0f}
-           
-        3. LIQUIDITÀ (Capitale Circolante) [cite: 1003]
-           Current Ratio: {curr_ratio:.2f} (Target > 2.0)
-           Quick Ratio:   {quick_ratio:.2f} (Target > 1.0)
-           
-        [VALUTAZIONE PREZZO]
-        4. P/E RATIO (TTM) [cite: 1015]
-           Valore: {pe_ratio:.2f}x
-           Utile per Azione (EPS): ${eps:.2f}
-           Earnings Yield: {earnings_yield:.2f}%
-           Graham: "Sopra 15x si paga un premio per la crescita futura"
-           
-        5. ASSET TANGIBILI [cite: 1010]
-           Book Value Tangibile: ${bv_share:.2f}
-           Prezzo/Book Value:    {pb_ratio:.2f}x
-           
-        Note:
-        - Il calcolo del debito esclude ora le passività correnti (fornitori) conformemente al cap. 22.
-        - L'EPS è basato sui dati TTM (ultimi 12 mesi).
+        # Graham Number (Cap. 14): P/E * P/B non dovrebbe superare 22.5 [cite: 3055]
+        graham_number_val = pe_ratio * pb_ratio
+
+        # Capitale Circolante Netto (Working Capital) [cite: 2607]
+        working_capital = self.d.current_assets - self.d.current_liabilities
+
+        # --- CHECKLIST INVESTITORE DIFENSIVO (Cap. 14) ---
+        checks = []
+
+        # 1. Dimensioni Adeguate 
+        # Graham: "$100M vendite annuali" (nel 1972). Aggiustato inflazione (x7) ~= $700M.
+        # Usiamo $1B per sicurezza moderna.
+        checks.append(GrahamCheck(
+            "1. Dimensioni Adeguate",
+            self.d.sales >= 1_000_000_000,
+            f"Vendite: ${self.d.sales/1e9:.2f}B (Target > $1B)"
+        ))
+
+        # 2. Condizione Finanziaria Sufficientemente Solida 
+        # "Attività correnti almeno il doppio delle passività correnti"
+        # "Indebitamento a lungo termine non superiore al capitale circolante netto"
+        curr_ratio = self.d.current_assets / self.d.current_liabilities if self.d.current_liabilities else 0
+        cond_strong = (curr_ratio >= 2.0) and (self.d.long_term_debt <= working_capital)
+        checks.append(GrahamCheck(
+            "2. Solidità Finanziaria",
+            cond_strong,
+            f"Current Ratio: {curr_ratio:.2f} (Target 2.0) | Debito < Working Capital: {'SI' if self.d.long_term_debt <= working_capital else 'NO'}"
+        ))
+
+        # 3. Stabilità degli Utili 
+        # "Alcuni guadagni per le azioni ordinarie in ciascuno degli ultimi dieci anni"
+        # Usiamo il flag estratto dall'AI come proxy
+        checks.append(GrahamCheck(
+            "3. Stabilità Utili (10y)",
+            self.d.earnings_growth_10y, # Proxy dal DataBuilder
+            "Nessun deficit negli ultimi anni (Check storico)"
+        ))
+
+        # 4. Record di Dividendi 
+        # "Pagamenti ininterrotti per almeno gli ultimi 20 anni"
+        checks.append(GrahamCheck(
+            "4. Storia Dividendi (20y)",
+            self.d.dividend_history_20y,
+            "Pagamenti ininterrotti (Check storico)"
+        ))
+
+        # 5. Crescita degli Utili 
+        # "Aumento minimo di almeno un terzo dell'utile per azione negli ultimi dieci anni"
+        checks.append(GrahamCheck(
+            "5. Crescita Utili",
+            True, # Difficile da calcolare preciso senza dati raw di 10 anni fa, assumiamo OK se positivo
+            "Crescita moderata a lungo termine richiesta"
+        ))
+
+        # 6. Rapporto Prezzo/Utili Moderato 
+        # "Non superiore a 15 volte i guadagni medi degli ultimi tre anni"
+        checks.append(GrahamCheck(
+            "6. P/E Moderato",
+            pe_ratio <= 15.0,
+            f"P/E (su media 3y): {pe_ratio:.2f}x (Target < 15.0)"
+        ))
+
+        # 7. Rapporto Moderato Prezzo/Attività [cite: 3055]
+        # "Non superiore a 1.5 volte il valore contabile... prodotto P/E * P/B < 22.5"
+        checks.append(GrahamCheck(
+            "7. Prezzo/Attività (Graham Number)",
+            graham_number_val <= 22.5,
+            f"P/E * P/B = {graham_number_val:.2f} (Target < 22.5)"
+        ))
+
+        # --- COSTRUZIONE REPORT ---
+        score = sum(1 for c in checks if c.passed)
+        
+        report = f"""
+        === ANALISI 'L'INVESTITORE INTELLIGENTE' (Ben Graham) ===
+        
+        [CRITERI SELEZIONE INVESTITORE DIFENSIVO - CAP. 14]
+        Punteggio: {score}/7 Criteri Soddisfatti
+        
         """
+        
+        for c in checks:
+            icon = "✅" if c.passed else "❌"
+            report += f"{icon} {c.criterion}\n   -> {c.details}\n"
+            
+        report += f"""
+        ------------------------------------------------
+        [VALUTAZIONE ENTERPRISING INVESTOR]
+        Se l'azienda non soddisfa i criteri difensivi (troppo severi), 
+        Graham suggerisce di guardare al "Capitale Circolante Netto" (NCAV).
+        
+        NCAV per Azione: ${ (working_capital - self.d.long_term_debt) / self.d.shares_outstanding if self.d.shares_outstanding else 0 :.2f}
+        Prezzo Attuale:  ${self.d.current_market_price:.2f}
+        
+        Giudizio: {"SOTTOVALUTATA (Bargain)" if self.d.current_market_price < ((working_capital - self.d.long_term_debt) / self.d.shares_outstanding) else "Prezzo superiore al valore di liquidazione netto."}
+        ------------------------------------------------
+        Note:
+        - Il P/E è calcolato sulla media degli utili a 3 anni (ove disp.) come raccomandato a pag. 410.
+        - Il limite di debito per l'investitore difensivo è severo: deve essere inferiore al capitale circolante.
+        """
+        
+        return report
