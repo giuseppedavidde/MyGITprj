@@ -1,86 +1,78 @@
-"""Agente di analisi finanziaria basato sui principi di Benjamin Graham."""
+"""
+Modulo per l'analisi fondamentale secondo i principi di Benjamin Graham.
+"""
 from dataclasses import dataclass
 from models.data_schema import FinancialData
 
 @dataclass
 class GrahamAnalysisResult:
-    """Struttura per i risultati dell'analisi di Graham."""
+    """Classe di supporto per i risultati."""
     value: float
     verdict: str
-    graham_ref: str  # Riferimento al principio del libro
+    graham_ref: str
 
 class GrahamAgent:
     """
-    Analista avanzato basato su 'Leggere e capire i bilanci'.
-    Implementa il 'Metodo dei Multipli' descritto nella Parte Seconda del libro.
+    Analista avanzato. Implementa il 'Metodo dei Multipli' (Parte Seconda del libro).
     """
     def __init__(self, data: FinancialData):
         self.d = data
-        # Assicuriamoci che gli oneri siano positivi per i calcoli dei rapporti
-        self.d.interest_charges = abs(self.d.interest_charges)
 
     def analyze(self) -> str:
-        """Esegue l'analisi completa stile 'Parte Seconda' del libro."""
+        """Esegue l'analisi completa con logica Debt-Free corretta."""
         
-        # --- CALCOLI FONDAMENTALI (Basati sui capitoli del libro) ---
-
-        # 1. Margine di Profitto (Margin of Profit)
-        # Rif: [cite: 928] "Reddito operativo diviso per le vendite"
+        # 1. Margine di Profitto
         profit_margin = 0.0
         if self.d.sales > 0:
             profit_margin = (self.d.operating_income / self.d.sales) * 100
 
-        # 2. Indice di Copertura Interessi (Times Interest Charges Earned)
-        # Rif: [cite: 940] "Totale ricavi diviso per gli interessi"
-        # Graham richiede > 2.5x per la media, > 3x per industriali sicure [cite: 942]
-        int_coverage = 0.0
-        # Usiamo Reddito Operativo come proxy di "Totale Ricavi" (disponibili per oneri)
+        # 2. Copertura Interessi (Logic Smart)
+        int_coverage_str = "N/A"
         if self.d.interest_charges > 0:
-            int_coverage = self.d.operating_income / self.d.interest_charges
+            int_cov_val = self.d.operating_income / self.d.interest_charges
+            int_coverage_str = f"{int_cov_val:.2f}x"
+            int_judgement = "ECCELLENTE" if int_cov_val > 5 else "ADEGUATO" if int_cov_val > 3 else "RISCHIOSO"
         else:
-            int_coverage = 999.0  # Nessun debito, sicurezza massima
+            # Se interessi sono 0, controlliamo se c'è debito
+            if self.d.long_term_debt == 0:
+                int_coverage_str = "∞ (Debt Free)"
+                int_judgement = "ECCELLENTE (Nessun Debito Finanziario)"
+            else:
+                # Debito c'è ma interessi 0? Strano, ma matematicamente ∞
+                int_coverage_str = "∞ (Interessi Zero)"
+                int_judgement = "DA VERIFICARE"
 
-        # 3. Indice di Liquidità (Current Ratio)
-        # Rif: [cite: 1004] "Attivo corrente diviso per passivo corrente"
-        # Standard minimo industriali: 2 a 1 
+        # 3. Current Ratio
         curr_ratio = 0.0
         if self.d.current_liabilities > 0:
             curr_ratio = self.d.current_assets / self.d.current_liabilities
 
-        # 4. Indice di Liquidità Immediata (Quick/Acid Test)
-        # Rif: [cite: 1008] "(Attivo corrente - scorte) / Passivo corrente"
-        # Obiettivo: 1 a 1 [cite: 1009]
+        # 4. Quick Ratio
         quick_assets = self.d.current_assets - self.d.inventory
         quick_ratio = 0.0
         if self.d.current_liabilities > 0:
             quick_ratio = quick_assets / self.d.current_liabilities
 
-        # 5. Valore Contabile Tangibile per Azione (Book Value)
-        # Rif: [cite: 1010, 1012] "Escludere attivi intangibili (avviamento, brevetti)"
+        # 5. Book Value (Tangibile)
         equity = self.d.common_stock + self.d.surplus
         tangible_equity = equity - self.d.intangible_assets
         bv_share = 0.0
         if self.d.shares_outstanding > 0:
             bv_share = tangible_equity / self.d.shares_outstanding
 
-        # 6. Rapporto Prezzo/Valore Contabile (Price to Book)
-        # Non esplicitato come formula unica ma discusso nel cap. 21 [cite: 656-658]
         pb_ratio = 0.0
         if bv_share > 0:
             pb_ratio = self.d.current_market_price / bv_share
         
-        # 7. Struttura del Capitale (Capitalization)
-        # Rif: [cite: 985-997] Rapporto tra Obbligazioni e Capitale Totale
-        # "Una normale azienda industriale non dovrebbe avere molto più del 25-30% in obbligazioni" [cite: 998]
-        total_capitalization = self.d.total_liabilities + equity # Approx Debito + Equity
+        # 6. Struttura del Capitale (CORRETTA)
+        # Graham Cap. 27: Obbligazioni / (Obbligazioni + Equity)
+        # Usiamo Long Term Debt invece di Total Liabilities per escludere i fornitori.
+        capitalization_base = self.d.long_term_debt + equity
         debt_ratio = 0.0
-        if total_capitalization > 0:
-            # Usiamo total_liabilities come proxy del debito finanziato per prudenza
-            debt_ratio = (self.d.total_liabilities / total_capitalization) * 100
+        if capitalization_base > 0:
+            debt_ratio = (self.d.long_term_debt / capitalization_base) * 100
 
-        # 8. P/E Ratio
-        # Rif: [cite: 1015] "Prezzo diviso utili per azione"
-        # Graham nota: < 15 per aziende stabili, > 15 sconta crescita futura [cite: 868]
+        # 7. P/E Ratio
         eps = 0.0
         pe_ratio = 0.0
         if self.d.shares_outstanding > 0:
@@ -88,60 +80,44 @@ class GrahamAgent:
         if eps > 0:
             pe_ratio = self.d.current_market_price / eps
 
-        # 9. Earnings Yield (Rendimento degli Utili)
-        # Rif: [cite: 1191] "Rapporto tra utile annuo e prezzo (inverso del P/E)"
-        # Utile per confrontare l'azione con un'obbligazione
+        # 8. Earnings Yield
         earnings_yield = 0.0
         if self.d.current_market_price > 0:
             earnings_yield = (eps / self.d.current_market_price) * 100
 
-        # --- GENERAZIONE REPORT ---
-        
         return f"""
-        === ANALISI APPROFONDITA BENJAMIN GRAHAM ===
-        Data source: Bilancio Aziendale
+        === ANALISI BENJAMIN GRAHAM (Refined) ===
         
-        [SEZIONE A: SICUREZZA E SOLIDITÀ]
+        [SICUREZZA FINANZIARIA]
+        0. MARGINE DI PROFITTO [cite: 920]
+           Valore: {profit_margin:.2f}%
+           Giudizio: {('BUONO' if profit_margin > 10 else 'ADEGUATO' if profit_margin > 5 else 'BASSO')}
         
-        1. COPERTURA INTERESSI (Interest Coverage) [cite: 940]
-           Valore: {int_coverage:.2f}x
-           Graham: "Minimo 3 volte per industriali sicure" 
-           Giudizio: {"ECCELLENTE" if int_coverage > 5 else "ADEGUATO" if int_coverage > 3 else "RISCHIOSO"}
+        1. COPERTURA INTERESSI [cite: 940]
+           Valore: {int_coverage_str}
+           Giudizio: {int_judgement}
            
-        2. CAPITALE CIRCOLANTE (Liquidità)
-           Current Ratio: {curr_ratio:.2f} (Target Graham > 2.0) 
-           Quick Ratio:   {quick_ratio:.2f} (Target Graham > 1.0) [cite: 1009]
-           Giudizio: {"SOLIDO" if curr_ratio >= 1.5 else "TIRATO - L'azienda opera con poca cassa rispetto ai debiti brevi"}
-           *Nota: Aziende moderne efficienti possono operare sotto 2.0, ma Graham predilige ampi margini di sicurezza.
-        
-        3. STRUTTURA DEL CAPITALE [cite: 998]
-           Incidenza del Debito Totale: {debt_ratio:.1f}%
-           Graham: "Non molto più del 25-30% in obbligazioni/debiti"
+        2. STRUTTURA DEL CAPITALE (Debito Finanziario) [cite: 986]
+           Incidenza Bonds/Debito Lungo: {debt_ratio:.1f}%  <-- (Ora esclude debiti operativi)
+           Graham: "Ottimale sotto il 25-30% per industriali"
+           Valore Debito LP: ${self.d.long_term_debt:,.0f}
            
-        ------------------------------------------------
-        
-        [SEZIONE B: REDDITIVITÀ E PREZZO]
-        
-        4. PERFORMANCE OPERATIVA
-           Margine di Profitto: {profit_margin:.2f}% [cite: 928]
-           (Indica l'efficienza gestionale: {profit_margin:.2f} centesimi guadagnati per ogni dollaro di vendite)
+        3. LIQUIDITÀ (Capitale Circolante) [cite: 1003]
+           Current Ratio: {curr_ratio:.2f} (Target > 2.0)
+           Quick Ratio:   {quick_ratio:.2f} (Target > 1.0)
            
-        5. VALUTAZIONE DI MERCATO
-           Prezzo Attuale:   ${self.d.current_market_price:.2f}
-           EPS (Utile/Az):   ${eps:.2f}
-           P/E Ratio:        {pe_ratio:.2f}x
-           Earnings Yield:   {earnings_yield:.2f}% (Rendimento teorico se l'azienda distribuisse tutto l'utile) [cite: 1191]
+        [VALUTAZIONE PREZZO]
+        4. P/E RATIO (TTM) [cite: 1015]
+           Valore: {pe_ratio:.2f}x
+           Utile per Azione (EPS): ${eps:.2f}
+           Earnings Yield: {earnings_yield:.2f}%
+           Graham: "Sopra 15x si paga un premio per la crescita futura"
            
-           Graham sul P/E:
-           - P/E < 15: Tipico di aziende stabili o sottovalutate [cite: 868]
-           - P/E > 15: Il mercato sconta una forte crescita futura (Speculativo) [cite: 868]
+        5. ASSET TANGIBILI [cite: 1010]
+           Book Value Tangibile: ${bv_share:.2f}
+           Prezzo/Book Value:    {pb_ratio:.2f}x
            
-        6. ANALISI ASSET TANGIBILI (Book Value)
-           Valore Contabile Tangibile: ${bv_share:.2f} per azione
-           Prezzo su Book Value:       {pb_ratio:.2f}x
-           
-           Analisi Intangibili:
-           L'azienda ha ${self.d.intangible_assets:,.0f} in intangibili (Avviamento, Brevetti).
-           Graham avverte: "Dare poco o nessun peso alle cifre degli attivi immateriali".
-           Il premio pagato sul Book Value ({pb_ratio:.2f}x) rappresenta la fiducia del mercato nel brand e nella crescita futura.
+        Note:
+        - Il calcolo del debito esclude ora le passività correnti (fornitori) conformemente al cap. 22.
+        - L'EPS è basato sui dati TTM (ultimi 12 mesi).
         """

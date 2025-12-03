@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class FinancialData:
     """
     Struttura dati standardizzata per i valori di bilancio.
-    Include validazione automatica post-inizializzazione.
+    Include distinzione tra Passività Totali e Debito Finanziario.
     """
     # Stato Patrimoniale
     total_assets: float
@@ -14,6 +14,7 @@ class FinancialData:
     inventory: float
     intangible_assets: float
     total_liabilities: float
+    long_term_debt: float  # Solo debiti finanziari (Bonds, Mutui), esclusi fornitori/affitti
     
     # Capitale
     preferred_stock: float
@@ -32,19 +33,10 @@ class FinancialData:
     current_market_price: float
 
     def __post_init__(self):
-        """
-        Questo metodo viene eseguito automaticamente subito dopo la creazione dell'oggetto.
-        Lo usiamo per garantire che i dati siano conformi alle aspettative di Graham.
-        """
-        # 1. FIX INTERESSI: Graham usa sempre il valore assoluto per la copertura.
-        # Se l'AI o Yahoo ci passano un negativo (es. -500), lo rendiamo positivo (500).
+        """Validazione e pulizia automatica."""
+        # Fix segni
         self.interest_charges = abs(self.interest_charges)
-
-        # 2. FIX INTANGIBILI: Non possono essere negativi
         self.intangible_assets = abs(self.intangible_assets)
-
-        # 3. FIX PREZZO: Non può essere negativo
         self.current_market_price = abs(self.current_market_price)
-
-        # 4. FIX AZIONI: Non possono essere negative
         self.shares_outstanding = abs(self.shares_outstanding)
+        self.long_term_debt = abs(self.long_term_debt) 
