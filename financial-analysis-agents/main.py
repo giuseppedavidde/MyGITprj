@@ -1,155 +1,131 @@
-"""Module providing a function printing python version."""
+"""
+Main entry point per l'Analista Finanziario AI (CLI Version).
+Permette di scegliere il provider AI e analizzare un ticker da terminale.
+"""
 import os
+import sys
 from dotenv import load_dotenv
-from utils import load_company_data
-# Importiamo la classe dati per convertire il dict in oggetto
+from agents import MarketDataAgent, GrahamAgent
+from agents.ai_provider import AIProvider
 from models import FinancialData
-# Importiamo tutti gli agent necessari
-from agents import GrahamAgent, DataBuilderAgent, MarketDataAgent
 
-# Carica le variabili dal file .env all'avvio dello script
-load_dotenv()
+def clear_screen():
+    """Pulisce la console per una migliore leggibilità."""
+    os.system('cls' if os.name == 'nt' else 'clear')
 
-def mode_analysis():
-    """Logica per l'analisi di Graham su file locali esistenti"""
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = os.path.join(base_dir, 'data')
-    
-    if not os.path.exists(data_dir):
-        print(f"Cartella {data_dir} non trovata.")
-        return
-
-    files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
-    
-    if not files:
-        print("Nessun file JSON trovato in /data.")
-        return
-
-    print("\nFile disponibili:")
-    for i, f in enumerate(files):
-        print(f"{i+1}. {f}")
-    
-    choice = input("\nScegli il numero del file da analizzare: ")
-    try:
-        selected_file = files[int(choice)-1]
-        file_path = os.path.join(data_dir, selected_file)
-        
-        financial_data = load_company_data(file_path)
-        if financial_data:
-            print(f"\n--- Esecuzione Agent: Benjamin Graham su {selected_file} ---")
-            agent = GrahamAgent(financial_data)
-            print(agent.analyze())
-    except (ValueError, IndexError):
-        print("Selezione non valida.")
-
-def mode_builder():
-    """Logica per creare dati manualmente incollando testo grezzo"""
-    print("\n--- MODALITÀ CREAZIONE DATI MANUALE (AI - Gemini) ---")
-    
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        print("⚠️  ERRORE: Google API Key non trovata nel file .env")
-        return
-
-    print("Incolla qui sotto il testo grezzo del bilancio.")
-    print("Premi ENTER due volte per terminare l'inserimento.")
-    
-    lines = []
-    while True:
-        line = input()
-        if not line: break
-        lines.append(line)
-    raw_text = "\n".join(lines)
-    
-    if len(raw_text) < 10:
-        print("Testo troppo breve.")
-        return
-
-    builder = DataBuilderAgent(api_key=api_key)
-    structured_data = builder.build_from_text(raw_text)
-    
-    if structured_data:
-        print("\nDati estratti con successo.")
-        # Chiediamo se salvare
-        confirm = input("Vuoi salvare questo file per analisi future? (s/n): ")
-        if confirm.lower() == 's':
-            filename = input("Nome del file (es. azienda_x.json): ")
-            if not filename.endswith('.json'):
-                filename += ".json"
-            builder.save_to_json(structured_data, filename)
-            
-            # Opzionale: Analisi immediata
-            analyze_now = input("Vuoi eseguire l'analisi di Graham ora? (s/n): ")
-            if analyze_now.lower() == 's':
-                f_data = FinancialData(**structured_data)
-                graham = GrahamAgent(f_data)
-                print(graham.analyze())
-
-def mode_ticker():
+def get_provider_config():
     """
-    Logica per scaricare dati da Yahoo Finance, strutturarli con AI
-    e lanciare l'analisi di Graham.
+    Gestisce l'interazione utente per selezionare il provider AI.
+    Returns:
+        tuple: (provider_code, api_key, model_name)
     """
-    print("\n--- MODALITÀ TICKER (Yahoo Finance + AI) ---")
+    print("\n--- CONFIGURAZIONE CERVELLO AI ---")
+    print("1. Google Gemini (Cloud - Default)")
+    print("2. Ollama (Locale - Privacy)")
+    print("3. Groq (Cloud - Ultra Veloce)")
+    print("4. DeepSeek (Cloud - Economico)")
     
-    # Controllo API Key (MarketDataAgent usa DataBuilderAgent che usa Gemini)
-    if not os.getenv("GOOGLE_API_KEY"):
-        print("⚠️  ERRORE: Google API Key non trovata nel file .env")
-        return
-
-    ticker = input("Inserisci il simbolo del Ticker (es. GME, AAPL, TSLA): ").upper().strip()
+    choice = input("Seleziona [1-4]: ").strip()
     
-    if not ticker:
-        return
-
-    # 1. Istanziamo l'agent di mercato
-    market_agent = MarketDataAgent()
+    provider = "gemini"
+    api_key = None
+    model_name = None
     
-    # 2. Recuperiamo i dati (Questo usa internamente l'AI per mappare i campi)
-    data_dict = market_agent.fetch_from_ticker(ticker)
-    
-    if data_dict:
-        print(f"\n✅ Dati recuperati e strutturati per {ticker}.")
-        print(f"   Prezzo rilevato: ${data_dict['current_market_price']}")
-        print(f"   Utile Netto:     ${data_dict['net_income']:,.0f}")
-        
-        # 3. Salvataggio
-        save = input("\nVuoi salvare i dati in locale (data/)? (s/n): ")
-        if save.lower() == 's':
-            filename = f"{ticker}.json"
-            market_agent.save_to_json(data_dict, filename)
-        
-        # 4. Analisi di Graham
-        run_now = input("Vuoi eseguire l'analisi di Graham ora? (s/n): ")
-        if run_now.lower() == 's':
-            print(f"\n--- Analisi Graham su {ticker} ---")
+    if choice == "2":
+        provider = "ollama"
+        models = AIProvider.get_ollama_models()
+        if models:
+            print("\nModelli Ollama trovati:")
+            for i, m in enumerate(models, 1):
+                print(f"{i}. {m}")
             
-            # Convertiamo il dizionario (JSON) in Oggetto FinancialData
-            financial_data_obj = FinancialData(**data_dict)
-            
-            # Passiamo l'oggetto all'Agente di Graham
-            graham = GrahamAgent(financial_data_obj)
-            print(graham.analyze())
+            sel = input(f"Seleziona [1-{len(models)}] o premi Invio per manuale: ").strip()
+            if sel.isdigit() and 1 <= int(sel) <= len(models):
+                model_name = models[int(sel)-1]
+            else:
+                model_name = input("Nome modello manuale (default: llama3): ").strip() or "llama3"
+        else:
+            model_name = input("Nome modello locale (default: llama3): ").strip() or "llama3"
+    elif choice == "3":
+        provider = "groq"
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            api_key = input("Inserisci Groq API Key: ").strip()
+        model_name = "llama3-70b-8192"
+    elif choice == "4":
+        provider = "deepseek"
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            api_key = input("Inserisci DeepSeek API Key: ").strip()
+        model_name = "deepseek-chat"
     else:
-        print("❌ Impossibile recuperare o strutturare i dati per questo ticker.")
+        # Default Gemini
+        provider = "gemini"
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            api_key = input("Inserisci Google API Key: ").strip()
+        model_name = "gemini-pro"
+            
+    return provider, api_key, model_name
 
 def main():
-    """Codice principale per selezionare la modalità operativa."""
-    print("=== Financial Analysis Multi-Agent System ===")
-    print("1. Analizza un file locale esistente")
-    print("2. Crea dati da testo grezzo (Copia/Incolla)")
-    print("3. Analizza da Ticker (Yahoo Finance -> AI -> Graham)") # <--- NUOVA OPZIONE
+    """Funzione principale dell'applicazione CLI."""
+    load_dotenv()
+    clear_screen()
     
-    mode = input("\nScegli modalità (1, 2 o 3): ")
-    
-    if mode == "1":
-        mode_analysis()
-    elif mode == "2":
-        mode_builder()
-    elif mode == "3":
-        mode_ticker()
-    else:
-        print("Scelta non valida.")
+    print("==========================================")
+    print(" 🧐 GRAHAM AI ANALYST - CLI MODE")
+    print("==========================================\n")
+
+    # 1. Configurazione
+    try:
+        provider, api_key, model = get_provider_config()
+    except KeyboardInterrupt:
+        sys.exit(0)
+
+    while True:
+        print(f"\n[{provider.upper()}] Pronto.")
+        ticker = input("Inserisci Ticker (es. AAPL) o 'q' per uscire: ").strip().upper()
+        
+        if ticker == 'Q':
+            print("Arrivederci!")
+            break
+            
+        if not ticker:
+            continue
+
+        try:
+            # 2. Inizializzazione Agente
+            print("\n... Inizializzazione Agenti ...")
+            market_agent = MarketDataAgent(
+                api_key=api_key, 
+                provider=provider, 
+                model=model
+            )
+
+            # 3. Esecuzione
+            # Nota: fetch_from_ticker ora stampa i log progressivi a video
+            result_package = market_agent.fetch_from_ticker(ticker)
+
+            if result_package:
+                financials = result_package.get("financials")
+                
+                # 4. Analisi Graham
+                if financials:
+                    print("\n" + "="*60)
+                    print(f" ⚖️ ANALISI FINALE DI BENJAMIN GRAHAM ({ticker})")
+                    print("="*60)
+                    
+                    fin_data = FinancialData(**financials)
+                    graham = GrahamAgent(fin_data)
+                    report = graham.analyze()
+                    print(report)
+                    print("="*60)
+            else:
+                print("\n❌ Nessun dato recuperato.")
+
+        except Exception as e: # pylint: disable=broad-exception-caught
+            print(f"\n❌ Errore durante l'esecuzione: {e}")
 
 if __name__ == "__main__":
     main()

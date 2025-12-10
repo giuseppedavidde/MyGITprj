@@ -59,6 +59,9 @@ class FinvizAgent:
                     # Pulizia e conversione del valore
                     clean_val = self._parse_finviz_value(val_text)
                     data[key] = clean_val
+            
+            # Calcolo Campi Derivati (Smart Logic)
+            self._calculate_derived_fields(data)
 
             return data
 
@@ -98,3 +101,32 @@ class FinvizAgent:
         except ValueError:
             # Se non è un numero, restituisci il testo originale
             return text
+
+    def _calculate_derived_fields(self, data: Dict[str, Any]):
+        """
+        Calcola campi mancanti usando formule inverse sui ratio disponibili.
+        Es. Long Term Debt da LT Debt/Eq e Total Equity.
+        """
+        # 1. Calcolo Total Equity (Patrimonio Netto)
+        # Equity = Book Value per Share * Shares Outstanding
+        book_sh = data.get('Book/sh')
+        shs_out = data.get('Shs Outstand')
+        
+        if isinstance(book_sh, (int, float)) and isinstance(shs_out, (int, float)):
+            total_equity = book_sh * shs_out
+            data['Total Equity'] = total_equity # Utile averlo
+            
+            # 2. Calcolo Long Term Debt
+            # LTD = LT Debt/Eq * Total Equity
+            lt_debt_eq = data.get('LT Debt/Eq')
+            if isinstance(lt_debt_eq, (int, float)):
+                ltd = lt_debt_eq * total_equity
+                data['Long Term Debt'] = ltd
+                print(f"🧮 Smart Finviz: Calcolato Long Term Debt = {ltd:,.0f} (da Ratio {lt_debt_eq})")
+
+            # 3. Calcolo Total Debt
+            # Total Debt = Debt/Eq * Total Equity
+            debt_eq = data.get('Debt/Eq')
+            if isinstance(debt_eq, (int, float)):
+                total_debt = debt_eq * total_equity
+                data['Total Debt'] = total_debt

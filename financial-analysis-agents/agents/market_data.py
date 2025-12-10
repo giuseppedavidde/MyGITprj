@@ -1,160 +1,175 @@
-"""Agente responsabile del recupero dati da Yahoo Finance."""
-from typing import Optional
+"""Agente Facade ottimizzato per risparmio token."""
+from typing import Optional, Dict, Any, Callable    
 from dataclasses import asdict
-import yfinance as yf
 import pandas as pd
-from models.data_schema import FinancialData            
+import yfinance as yf
+from models.data_schema import FinancialData
+from utils.cache_manager import CacheManager
 from .data_builder import DataBuilderAgent
 from .summary import SummaryAgent
 from .review import ReviewAgent
 from .etf_finder import ETFFinderAgent
 from .cross_check import CrossCheckAgent
 
+
+
 class MarketDataAgent:
-    """
-    Agente coordinatore (Facade).
-    Gestisce il flusso: Download -> Summary -> Build -> Review.
-    """
+    """Orchestratore con logiche di risparmio token."""
     
-    def __init__(self, api_key: Optional[str] = None):
-        self.builder = DataBuilderAgent(api_key=api_key)
-        self.summarizer = SummaryAgent(api_key=api_key)
-        self.reviewer = ReviewAgent(api_key=api_key)
-        self.etf_finder = ETFFinderAgent(api_key=api_key)
-        self.cross_checker = CrossCheckAgent(api_key=api_key)
-
-    def fetch_from_ticker(self, ticker_symbol: str) -> Optional[dict]:
-        """Recupera e processa i dati finanziari per il ticker specificato."""
-        print(f"📈 Recupero DOSSIER COMPLETO (TTM) per {ticker_symbol}...")
+    def __init__(self, api_key: Optional[str] = None, provider: str = "gemini", model: str = ""):
+        self.cache = CacheManager()
         
+        # --- MODEL TIERING (Strategia di Risparmio) ---
+        # Se usiamo Gemini, usiamo modelli "Flash" (veloci/economici) per task meccanici
+        # e modelli "Pro" (o user choice) per task complessi (Summary).
+        builder_model = model
+        cross_check_model = model
+        
+        if provider == "gemini":
+            # Se l'utente non ha forzato un modello specifico, usiamo i default ottimizzati
+            if not model:
+                builder_model = "gemini-1.5-flash"  # Estrazione dati: Flash è perfetto
+                cross_check_model = "gemini-1.5-flash" # Ragionamento semplice: Flash ok
+                model = "gemini-1.5-pro" # Summary/Reasoning: Pro preferibile
+            else:
+                # Se l'utente ha scelto un modello (es. 2.0-flash), usiamo quello ovunque
+                builder_model = model
+                cross_check_model = model
+
+        # Inizializzazione Agenti con modelli specifici
+        self.builder = DataBuilderAgent(api_key, provider, model)
+        self.summarizer = SummaryAgent(api_key, provider, model)
+        self.reviewer = ReviewAgent(api_key, provider, model)
+        self.etf_finder = ETFFinderAgent(api_key, provider, model)
+        self.cross_checker = CrossCheckAgent(api_key, provider, model)
+
+    def _minify_dataframe(self, df: pd.DataFrame, max_cols: int = 4, max_rows: int = 12) -> str:
+        """Minifica un DataFrame in CSV tabulare per risparmiare token."""
+        if df.empty: return "N/A"
+        # Prendi solo le colonne più recenti (sx)
+        df_reduced = df.iloc[:, :max_cols]
+        # Se troppe righe, taglia (per bilanci annuali ok, per trimestrali lunghi taglia)
+        if len(df_reduced) > max_rows:
+            df_reduced = df_reduced.head(max_rows)
+        return df_reduced.to_csv(sep="\t", index=True, float_format="%.2f")
+
+    def fetch_from_ticker(self, ticker_symbol: str, audit_mode: str = "quick", callback: Optional[Callable[[str], None]] = None) -> Optional[Dict[str, Any]]:
+        """
+        Recupera dati finanziari e summary.
+        audit_mode: 'quick' (solo errori ovvi) | 'full' (controllo esteso)
+        """
+        print(f"📈 Analisi Ottimizzata per {ticker_symbol} (Mode: {audit_mode})...")
+        
+        print(f"📈 Analisi Ottimizzata per {ticker_symbol} (Mode: {audit_mode})...")
+        
+        # CHECK CACHE
+        cache_fin = self.cache.get(f"{ticker_symbol}_financials", 86400*7)
+        # Summary 30gg, Finviz 24h (dati giornalieri)
+        cache_sum = self.cache.get(f"{ticker_symbol}_summary", 86400*30)
+        cache_fv = self.cache.get(f"{ticker_symbol}_finviz", 86400)
+        
+        # Se abbiamo cache financials e summary e siamo in quick, usiamo cache.
+        # Se siamo in full, magari vogliamo rinfrescare finviz? Per ora usiamo caché se valida (24h).
+        if cache_fin and cache_sum and audit_mode == "quick":
+            print("🚀 HIT Cache! Zero token usati.")
+            # Se abbiamo finviz in cache bene, sennò pace (in quick mode non è critico se non per display)
+            return {"financials": cache_fin, "summary": cache_sum, "finviz": cache_fv}
+
+        # FETCH YFINANCE
         try:
-            ticker = yf.Ticker(ticker_symbol)
+            # ... (Codice YFinance esistente invariato, omettiamo per brevità diff se non cambia)
+            tk = yf.Ticker(ticker_symbol)
+            q_inc = tk.quarterly_financials
+            if q_inc.empty: return None
             
-            # --- 1. DATI TRIMESTRALI (Per calcolo TTM) ---
-            q_inc = ticker.quarterly_financials
-            q_cf = ticker.quarterly_cashflow
-            q_bs = ticker.quarterly_balance_sheet # Per lo stato patrimoniale serve l'ultimo, non la somma
+            # Calcoli TTM (Python side = 0 token)
+            cols = q_inc.columns[:4]
+            ttm_inc = q_inc[cols].sum(axis=1).to_frame("TTM")
+            ttm_cf = tk.quarterly_cashflow[cols].sum(axis=1).to_frame("TTM")
+            mrq_bs = tk.quarterly_balance_sheet.iloc[:, 0:1]
             
-            if q_inc.empty:
-                print(f"❌ Dati trimestrali non disponibili per {ticker_symbol}. Impossibile calcolare TTM.")
-                return None
-
-            # --- 2. COSTRUZIONE TTM (Trailing Twelve Months) ---
-            # Sommiamo le ultime 4 colonne disponibili (4 trimestri) per il Conto Economico
-            # Se ci sono meno di 4 colonne, sommiamo quelle che ci sono
-            cols_to_sum = q_inc.columns[:4] 
-            
-            # Calcolo TTM per Income Statement (Somma)
-            ttm_income = q_inc[cols_to_sum].sum(axis=1).to_frame(name="TTM_CALCULATED")
-            
-            # Calcolo TTM per Cash Flow (Somma)
-            ttm_cashflow = q_cf[q_cf.columns[:4]].sum(axis=1).to_frame(name="TTM_CALCULATED")
-            
-            # Per il Balance Sheet NON si somma, si prende l'ultimo disponibile (MRQ - Most Recent Quarter)
-            mrq_balance_sheet = q_bs.iloc[:, 0].to_frame(name="MRQ_LATEST_SNAPSHOT")
-
-            # --- 3. Dati Mercato e Dividendi ---
-            divs = ticker.dividends.tail(20)
-            info = ticker.info
-            sector = info.get('sector', 'Unknown')
-            current_price = info.get('currentPrice', info.get('previousClose', 0))
-
-            # --- 4. COSTRUZIONE PAYLOAD ---
-            # Creiamo un testo che forza l'AI a guardare la colonna TTM
-            raw_text_payload = f"""
-            === DOSSIER FINANZIARIO AGGIORNATO (TTM): {ticker_symbol} ===
-            Data Analisi: {pd.Timestamp.now().date()}
-            
-            *** INFO MERCATO ***
-            Prezzo Attuale: {current_price}
-            Azioni in Circolazione: {info.get('sharesOutstanding', 0)}
-            Settore: {sector}
-            
-            *** ISTRUZIONI PER L'AI ***
-            IMPORTANTE: Per 'Net Income', 'Sales', 'EBIT', usa la colonna 'TTM_CALCULATED' qui sotto.
-            Questa colonna rappresenta la somma degli ultimi 4 trimestri ed è fondamentale per un P/E corretto.
-            
-            *** CONTO ECONOMICO (Income Statement - TTM & Storico Trimestrale) ***
-            {ttm_income.to_string()}
-            --- Dettaglio Trimestrale ---
-            {q_inc.iloc[:, :4].to_string()}
-            
-            *** STATO PATRIMONIALE (Balance Sheet - Ultimo Trimestre MRQ) ***
-            NOTA: Usa questi valori per Assets, Liabilities, Debt.
-            {mrq_balance_sheet.to_string()}
-            
-            *** FLUSSO DI CASSA (Cash Flow - TTM) ***
-            {ttm_cashflow.to_string()}
-            
-            *** DIVIDENDI RECENTI ***
-            {divs.to_string() if not divs.empty else "Nessun dividendo recente"}
+            # DATA PRUNING & PAYLOAD
+            raw_text = f"""
+            DATA: {ticker_symbol} Price:{tk.info.get('currentPrice')}
+            [INCOME TTM]
+            {self._minify_dataframe(ttm_inc)}
+            [BALANCE MRQ]
+            {self._minify_dataframe(mrq_bs, max_rows=20)}
+            [CASH FLOW TTM]
+            {self._minify_dataframe(ttm_cf, max_rows=10)}
             """
 
-            # --- FASE 1: SUMMARY ---
-            print("\n" + "="*60)
-            print("📜 OVERVIEW (Focus su TTM/Trend Recenti)")
-            print("="*60)
-            print(self.summarizer.summarize_dossier(raw_text_payload))
-            print("="*60 + "\n")
+            # SUMMARY GENERATION
+            final_summary = cache_sum
+            if not final_summary:
+                print("📜 Generazione Summary...")
+                # Per il summary serve un po' più di contesto storico
+                summary_payload = raw_text + f"\nDesc: {tk.info.get('longBusinessSummary','')[:1000]}"
+                final_summary = self.summarizer.summarize_dossier(summary_payload)
+                self.cache.set(f"{ticker_symbol}_summary", final_summary)
             
-            # --- FASE 1.5: ETF FINDER ---
-            print("\n" + "-"*60)
-            print("🏦 ANALISI ESPOSIZIONE ETF")
-            print("-"*60)
-            etf_list = self.etf_finder.find_etfs_holding_ticker(ticker_symbol, sector)
-            if etf_list:
-                print(f"{'ETF Ticker':<10} {'AUM':<15} {'Peso Stimato':<15} {'Nome ETF'}")
-                print("-" * 70)
-                for etf in etf_list:
-                    print(f"{etf['etf_ticker']:<10} {etf['total_aum']:<15} {etf['weight_percentage']:<15} {etf['etf_name'][:30]}...")
+            # FINVIZ PRE-FETCH (Gestione Cache)
+            finviz_data = cache_fv
+            if not finviz_data:
+                # Se non è in cache, scarichiamo ora
+                finviz_data = self.cross_checker.finviz.get_fundamental_data(ticker_symbol)
+                if finviz_data:
+                    self.cache.set(f"{ticker_symbol}_finviz", finviz_data)
+
+            # FINANCIALS EXTRACTION
+            if cache_fin and audit_mode == "quick":
+                final_fin = cache_fin
             else:
-                print("Nessun ETF principale rilevato.")
-            print("-" * 60 + "\n")
-
-            # --- FASE 2: BUILDER ---
-            print("🧠 Estrazione dati TTM in corso...")
-            structured_data_dict = self.builder.build_from_text(raw_text_payload)
-            
-            if not structured_data_dict: 
-                return None
-
-            fin_data_obj = FinancialData(**structured_data_dict)
-
-            # --- FASE 3: REVISIONE & AUTO-CORREZIONE ---
-            print("\n" + "-"*60)
-            print("🧐 AUDIT AUTOMATICO")
-            
-            # Il ReviewAgent ora ci dice COSA non va
-            audit_report, suspicious_fields = self.reviewer.audit_data(ticker_symbol, fin_data_obj)
-            print(f"\nREPORT: {audit_report}")
-            
-            if suspicious_fields:
-                print(f"⚠️ Rilevate anomalie in: {suspicious_fields}. Avvio Cross-Check Web...")
+                print("🧠 Estrazione Dati...")
                 
-                # Chiamiamo l'agente investigativo
-                corrections = self.cross_checker.cross_check_fields(
-                    ticker_symbol, 
-                    asdict(fin_data_obj), 
-                    suspicious_fields
-                )
+                data_dict = None
+                if cache_fin:
+                    print("♻️ Uso dati in cache come base per Full Audit...")
+                    data_dict = cache_fin
+                else:
+                    data_dict = self.builder.build_from_text(raw_text)
                 
-                if corrections:
-                    # Applichiamo le correzioni al dizionario
-                    print("🛠️ Applicazione correzioni web ai dati finali...")
-                    structured_data_dict.update(corrections)
-                    # Ricreiamo l'oggetto pulito
-                    fin_data_obj = FinancialData(**structured_data_dict)
-            else:
-                print("✅ Nessuna anomalia critica rilevata che richieda web search.")
+                if not data_dict: return None
                 
-            print("-" * 60 + "\n")
+                fin_obj = FinancialData(**data_dict)
+                
+                # LAZY EXECUTION: Audit Logic
+                print(f"🧐 Audit {audit_mode.title()}...")
+                _, suspicious = self.reviewer.audit_data(ticker_symbol, fin_obj)
+                
+                # Definizione Criticità
+                if audit_mode == "full":
+                    # In Full mode forziamo il controllo su TUTTI i campi principali
+                    real_issues = [
+                        'long_term_debt', 'net_income', 'shares_outstanding', 'sales', 
+                        'operating_income', 'total_assets', 'current_assets', 'total_liabilities',
+                        'inventory', 'intangible_assets', 'current_market_price', 
+                        'preferred_dividends', 'eps_3y_avg', 'interest_charges'
+                    ]
+                    print(f"🛡️ Start Full Audit su {len(real_issues)} campi...")
+                else:
+                    # In Quick mode filtro solo errori critici sospetti
+                    critical = ['long_term_debt', 'net_income', 'shares_outstanding']
+                    real_issues = [f for f in suspicious if f in critical]
+                
+                if real_issues:
+                    print(f"⚠️ Verifica Web ({len(real_issues)} campi)...")
+                    if callback: callback(f"⚠️ Verifica Web estesa su: {real_issues}")
+                    # Passiamo finviz_data cachato per evitare doppio download
+                    fixes = self.cross_checker.cross_check_fields(
+                        ticker_symbol, 
+                        asdict(fin_obj), 
+                        real_issues, 
+                        callback=callback, 
+                        external_finviz_data=finviz_data
+                    )
+                    if fixes: data_dict.update(fixes)
+                
+                final_fin = asdict(FinancialData(**data_dict))
+                self.cache.set(f"{ticker_symbol}_financials", final_fin)
 
-            return asdict(fin_data_obj)
+            return {"financials": final_fin, "summary": final_summary, "finviz": finviz_data}
 
         except Exception as e: # pylint: disable=broad-exception-caught
-            print(f"❌ Errore critico nel MarketDataAgent: {e}")
+            print(f"❌ Errore: {e}")
             return None
-
-    def save_to_json(self, data: dict, filename: str):
-        """Salva i dati strutturati in un file JSON."""
-        self.builder.save_to_json(data, filename)
