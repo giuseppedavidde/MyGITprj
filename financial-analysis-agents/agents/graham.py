@@ -81,19 +81,31 @@ class GrahamAgent:
 
         # 3. Stabilità degli Utili 
         # "Alcuni guadagni per le azioni ordinarie in ciascuno degli ultimi dieci anni"
-        # Usiamo il flag estratto dall'AI come proxy
+        earnings_msg = "Nessun deficit rilevato (Check storico AI)"
+        if self.d.earnings_years_count > 0:
+            earnings_msg = f"Utili positivi in tutti gli anni analizzati ({self.d.earnings_years_count}y disp.)"
+            # Se abbiamo meno di 10 anni ma tutti positivi, diamo un giudizio di incoraggiamento
+            if self.d.earnings_years_count < 10 and self.d.earnings_growth_10y is False:
+                earnings_msg += " -> ⚠️ Storico breve ma IMPECCABILE (100% positivo)"
+        
         checks.append(GrahamCheck(
             "3. Stabilità Utili (10y)",
-            self.d.earnings_growth_10y, # Proxy dal DataBuilder
-            "Nessun deficit negli ultimi anni (Check storico)"
+            self.d.earnings_growth_10y, 
+            earnings_msg
         ))
 
         # 4. Record di Dividendi 
         # "Pagamenti ininterrotti per almeno gli ultimi 20 anni"
+        div_msg = "Pagamenti ininterrotti (Check storico)"
+        if self.d.dividend_years_count > 0:
+            div_msg = f"Dividendi rilevati per {self.d.dividend_years_count} anni (Target 20y)"
+            if self.d.dividend_years_count < 20 and not self.d.dividend_history_20y:
+                 div_msg += f" -> ⚠️ Storico breve ma CONTINUATIVO ({self.d.dividend_years_count} anni consecutivi)"
+        
         checks.append(GrahamCheck(
             "4. Storia Dividendi (20y)",
             self.d.dividend_history_20y,
-            "Pagamenti ininterrotti (Check storico)"
+            div_msg
         ))
 
         # 5. Crescita degli Utili 

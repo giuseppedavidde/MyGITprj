@@ -131,6 +131,42 @@ class MarketDataAgent:
                 
                 if not data_dict: return None
                 
+                # --- ARRICCHIMENTO DATI STORICI (Hard Calculations) ---
+                # Calcoliamo qui la storia dividendi e utili da YF, sovrascrivendo l'LLM se necessario
+                div_years = 0
+                earn_years = 0
+                try:
+                    # Storia Dividendi
+                    divs = tk.dividends
+                    if not divs.empty:
+                        # Conta anni unici in cui c'è stato un dividendo
+                        div_years = len(divs.index.year.unique())
+                    
+                    # Storia Utili (Annuali disponibili su YF, solitamente 4)
+                    inc_stmt = tk.financials
+                    if not inc_stmt.empty and "Net Income" in inc_stmt.index:
+                        # Conta quanti anni hanno Net Income > 0
+                        net_income_row = inc_stmt.loc["Net Income"]
+                        earn_years = (net_income_row > 0).sum()
+                    
+                    # Aggiorna il dizionario
+                    data_dict['dividend_years_count'] = int(div_years)
+                    data_dict['earnings_years_count'] = int(earn_years)
+                    
+                    # Logica Fallback/Override dei Booleani (L'LLM spesso allucina su 20y se non li vede)
+                    # Se YF ci dà info, usiamo quelle.
+                    # Nota: YF di solito non dà 20 anni di financials, ma dividendi si.
+                    if div_years >= 20: 
+                        data_dict['dividend_history_20y'] = True
+                    elif div_years > 0 and div_years < 20:
+                        # Se ne abbiamo trovati alcuni ma non 20, l'LLM diceva False? 
+                        # Lasciamo l'LLM decidere se ha visto testo aggiuntivo, 
+                        # MA se l'LLM ha detto False e noi abbiamo >20, abbiamo corretto sopra.
+                        pass
+                    
+                except Exception as e:
+                    print(f"⚠️ Errore calcolo storico: {e}")
+                
                 fin_obj = FinancialData(**data_dict)
                 
                 # LAZY EXECUTION: Audit Logic

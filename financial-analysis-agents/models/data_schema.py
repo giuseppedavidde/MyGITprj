@@ -33,11 +33,14 @@ class FinancialData:
     eps_3y_avg: float    # Utile per azione medio ultimi 3 anni 
     earnings_growth_10y: bool # Ha mostrato crescita negli ultimi 10 anni? 
     dividend_history_20y: bool # Ha pagato dividendi per 20 anni? 
-    # -----------------------------------------------------
-
+    
     # Mercato
     shares_outstanding: float
     current_market_price: float
+    
+    # Metadati aggiuntivi per reportistica (con default alla fine)
+    dividend_years_count: int = 0
+    earnings_years_count: int = 0
     
     capital_lease_obligations: float = 0.0 # Valore predefinito se non estratto 
 

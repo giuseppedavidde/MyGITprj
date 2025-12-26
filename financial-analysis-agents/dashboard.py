@@ -9,10 +9,12 @@ import streamlit as st
 import yfinance as yf
 from dotenv import load_dotenv
 
-# Import Agenti e Modelli
-from agents import MarketDataAgent, AIProvider
+from agents import MarketDataAgent, AIProvider, GrahamAgent, ETFFinderAgent
+from agents.ai_provider import OLLAMA_AVAILABLE
 from utils.cache_manager import CacheManager
 from models import FinancialData
+
+OLLAMA_INSTALLED = OLLAMA_AVAILABLE
 
 
 # --- CONFIGURAZIONE PAGINA ---
@@ -72,6 +74,15 @@ provider_code = "gemini"
 
 # Logica specifica per ogni provider
 # Logica specifica per ogni provider
+# Wrapper Caching per Streamlit (evita chiamate API ad ogni rerun)
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_gemini_models(api_key):
+    return AIProvider.get_gemini_models(api_key)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_groq_models(api_key):
+    return AIProvider.get_groq_models(api_key)
+    
 if "Gemini" in provider_selection:
     provider_code = "gemini"
     env_key = os.getenv("GOOGLE_API_KEY")
@@ -80,15 +91,18 @@ if "Gemini" in provider_selection:
     
     if api_key:
         try:
-            gemini_models = AIProvider.get_gemini_models(api_key)
+            gemini_models = get_cached_gemini_models(api_key)
             if gemini_models:
-                # Cerca di selezionare un modello default sensato se presente, altrimenti il primo
+                # Trova indice default solo se non c'è già una selezione nello state
+                # Ma st.selectbox gestisce lo stato se la lista è stabile (che ora è cacheata)
                 default_ix = 0
                 for i, m in enumerate(gemini_models):
-                    if "1.5-flash" in m and "latest" not in m: # Preferenza soft
+                    if "1.5-flash" in m and "latest" not in m: 
                          default_ix = i
                          break
-                selected_model = st.sidebar.selectbox("Scegli Modello Gemini:", gemini_models, index=default_ix)
+                
+                # Usa key univoca per persistenza
+                selected_model = st.sidebar.selectbox("Scegli Modello Gemini:", gemini_models, index=default_ix, key="gemini_model_select")
             else:
                  st.sidebar.warning("Nessun modello Gemini trovato o Key invalida.")
         except Exception:
@@ -102,15 +116,15 @@ elif "Groq" in provider_selection:
     
     if api_key:
         try:
-            groq_models = AIProvider.get_groq_models(api_key)
+            groq_models = get_cached_groq_models(api_key)
             if groq_models:
-                 # Default a llama-3 se c'è
+                # Default a llama-3 se c'è
                 default_ix = 0
                 for i, m in enumerate(groq_models):
                     if "llama-3.3" in m:
                         default_ix = i
                         break
-                selected_model = st.sidebar.selectbox("Scegli Modello Groq:", groq_models, index=default_ix)
+                selected_model = st.sidebar.selectbox("Scegli Modello Groq:", groq_models, index=default_ix, key="groq_model_select")
             else:
                 st.sidebar.warning("Nessun modello Groq trovato.")
         except Exception:
