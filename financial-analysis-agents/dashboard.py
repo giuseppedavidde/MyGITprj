@@ -10,11 +10,10 @@ import yfinance as yf
 from dotenv import load_dotenv
 
 # Import Agenti e Modelli
-from agents import MarketDataAgent, GrahamAgent, ETFFinderAgent, AIProvider
+from agents import MarketDataAgent, AIProvider
+from utils.cache_manager import CacheManager
 from models import FinancialData
 
-# Tentativo importazione Ollama per discovery modelli locali
-OLLAMA_INSTALLED = True
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(
@@ -139,6 +138,33 @@ elif "Ollama" in provider_selection:
             st.sidebar.info("2. Esegui `ollama pull llama3` nel terminale.")
     else:
         st.sidebar.error("Libreria 'ollama' mancante.")
+
+# --- GESTIONE CACHE ---
+with st.sidebar.expander("🗑️ Gestione Cache", expanded=False):
+    cm = CacheManager()
+    all_keys = cm.get_all_keys()
+    
+    # Raggruppa per Ticker
+    tickers_in_cache = sorted(list(set([k.split('_')[0] for k in all_keys if "_" in k])))
+    
+    if not tickers_in_cache:
+        st.caption("Nessun dato in cache.")
+    else:
+        st.caption(f"Trovati dati per {len(tickers_in_cache)} ticker.")
+        # Multiselect per cancellazione
+        to_delete = st.multiselect("Seleziona da cancellare:", tickers_in_cache)
+        
+        if st.button("Svuota Cache Selezionati"):
+            keys_to_del = []
+            for t in to_delete:
+                # Trova tutte le chiavi che iniziano con questo ticker
+                keys_to_del.extend([k for k in all_keys if k.startswith(f"{t}_")])
+            
+            if keys_to_del:
+                cm.delete_keys(keys_to_del)
+                st.success(f"Rimossi dati per: {', '.join(to_delete)}")
+                st.rerun() # Ricarica per aggiornare lista
+
 
 st.sidebar.divider()
 st.sidebar.header("🎛️ Opzioni Analisi")

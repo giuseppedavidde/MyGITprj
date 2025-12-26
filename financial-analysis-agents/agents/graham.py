@@ -53,12 +53,22 @@ class GrahamAgent:
         # 2. Condizione Finanziaria Sufficientemente Solida 
         # "Attività correnti almeno il doppio delle passività correnti"
         # "Indebitamento a lungo termine non superiore al capitale circolante netto"
-        curr_ratio = self.d.current_assets / self.d.current_liabilities if self.d.current_liabilities else 0
+        curr_ratio = self.d.current_assets / self.d.current_liabilities if (self.d.current_liabilities and self.d.current_liabilities > 0) else 0.0
+        
+        # Check per dati mancanti (evita falsi negativi se estrazione fallita)
+        data_missing = (self.d.current_assets == 0 or self.d.current_liabilities == 0)
+        
         cond_strong = (curr_ratio >= 2.0) and (self.d.long_term_debt <= working_capital)
+        
+        details_str = f"Current Ratio: {curr_ratio:.2f} (Target 2.0) | Working Capital > Fin. Debt: {'SI' if self.d.long_term_debt <= working_capital else 'NO'}"
+        if data_missing:
+            details_str = "⚠️ DATI MANCANTI (Assets/Liabs trovati a 0)"
+            cond_strong = False
+
         checks.append(GrahamCheck(
             "2. Solidità Finanziaria",
             cond_strong,
-            f"Current Ratio: {curr_ratio:.2f} (Target 2.0) | Working Capital > Fin. Debt: {'SI' if self.d.long_term_debt <= working_capital else 'NO'}"
+            details_str
         ))
 
         # Check Interest Coverage (non strettamente Cap. 14 ma vitale per bond analysis)

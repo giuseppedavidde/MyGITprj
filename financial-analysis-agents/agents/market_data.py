@@ -92,11 +92,11 @@ class MarketDataAgent:
             raw_text = f"""
             DATA: {ticker_symbol} Price:{tk.info.get('currentPrice')}
             [INCOME TTM]
-            {self._minify_dataframe(ttm_inc)}
+            {self._minify_dataframe(ttm_inc, max_rows=30)}
             [BALANCE MRQ]
-            {self._minify_dataframe(mrq_bs, max_rows=20)}
+            {self._minify_dataframe(mrq_bs, max_rows=60)}
             [CASH FLOW TTM]
-            {self._minify_dataframe(ttm_cf, max_rows=10)}
+            {self._minify_dataframe(ttm_cf, max_rows=30)}
             """
 
             # SUMMARY GENERATION

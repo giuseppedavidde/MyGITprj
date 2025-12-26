@@ -82,3 +82,19 @@ class CacheManager:
         if key in cache:
             del cache[key]
             self._save_cache(cache)
+            print(f"🗑️ Rimossa chiave cache: {key}")
+
+    def get_all_keys(self) -> list[str]:
+        """Restituisce tutte le chiavi in cache."""
+        return list(self._load_cache().keys())
+
+    def delete_keys(self, keys: list[str]):
+        """Rimuove una lista di chiavi."""
+        cache = self._load_cache()
+        flushed = False
+        for k in keys:
+            if k in cache:
+                del cache[k]
+                flushed = True
+        if flushed:
+            self._save_cache(cache)
