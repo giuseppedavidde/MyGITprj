@@ -72,18 +72,50 @@ selected_model = None
 provider_code = "gemini"
 
 # Logica specifica per ogni provider
+# Logica specifica per ogni provider
 if "Gemini" in provider_selection:
     provider_code = "gemini"
     env_key = os.getenv("GOOGLE_API_KEY")
     user_key = st.sidebar.text_input("Gemini API Key", value=env_key or "", type="password")
     api_key = user_key if user_key else None
+    
+    if api_key:
+        try:
+            gemini_models = AIProvider.get_gemini_models(api_key)
+            if gemini_models:
+                # Cerca di selezionare un modello default sensato se presente, altrimenti il primo
+                default_ix = 0
+                for i, m in enumerate(gemini_models):
+                    if "1.5-flash" in m and "latest" not in m: # Preferenza soft
+                         default_ix = i
+                         break
+                selected_model = st.sidebar.selectbox("Scegli Modello Gemini:", gemini_models, index=default_ix)
+            else:
+                 st.sidebar.warning("Nessun modello Gemini trovato o Key invalida.")
+        except Exception:
+             st.sidebar.caption("Impossibile caricare lista modelli.")
 
 elif "Groq" in provider_selection:
     provider_code = "groq"
-    selected_model = "llama3-70b-8192"
     env_key = os.getenv("GROQ_API_KEY")
     user_key = st.sidebar.text_input("Groq API Key", value=env_key or "", type="password")
     api_key = user_key if user_key else None
+    
+    if api_key:
+        try:
+            groq_models = AIProvider.get_groq_models(api_key)
+            if groq_models:
+                 # Default a llama-3 se c'è
+                default_ix = 0
+                for i, m in enumerate(groq_models):
+                    if "llama-3.3" in m:
+                        default_ix = i
+                        break
+                selected_model = st.sidebar.selectbox("Scegli Modello Groq:", groq_models, index=default_ix)
+            else:
+                st.sidebar.warning("Nessun modello Groq trovato.")
+        except Exception:
+            st.sidebar.caption("Err lista modelli.")
 
 elif "DeepSeek" in provider_selection:
     provider_code = "deepseek"

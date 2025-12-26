@@ -20,15 +20,17 @@ class DataBuilderAgent:
         {{
             "total_assets": float, "current_assets": float, "current_liabilities": float,
             "inventory": float, "intangible_assets": float, "total_liabilities": float,
-            "long_term_debt": float, "preferred_stock": float, "common_stock": float, "surplus": float,
+            "long_term_debt": float, "capital_lease_obligations": float,
+            "preferred_stock": float, "common_stock": float, "surplus": float,
             "sales": float, "operating_income": float, "net_income": float,
             "interest_charges": float, "preferred_dividends": float,
             "shares_outstanding": float, "current_market_price": float,
             "eps_3y_avg": float, "earnings_growth_10y": bool, "dividend_history_20y": bool
         }}
         RULES:
-        1. 'long_term_debt': Only financial debt (bonds/loans). Exclude leases/trade payables. If 0/missing, use 0.0.
-        2. 'interest_charges': Absolute value.
+        1. 'long_term_debt': ONLY FINANCIAL DEBT (Bonds, Notes, Bank Loans). EXCLUDE Leases (Operating/Finance) and Trade Payables.
+        2. 'capital_lease_obligations': Extract Operating and Finance Lease Liabilities here. If missing, 0.0.
+        3. 'interest_charges': Absolute value.
         3. Use provided TTM/MRQ values.
         4. If data missing, use 0.0 or best estimate.
         

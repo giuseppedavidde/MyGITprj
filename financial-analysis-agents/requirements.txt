@@ -13,8 +13,9 @@ mypy
 pytest
 
 # --- Dipendenze AI ---
-google-generativeai
+google-genai
 ollama
+groq
 
 # --- Gestione Variabili d'Ambiente ---
 python-dotenv

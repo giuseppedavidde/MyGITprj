@@ -58,8 +58,16 @@ class GrahamAgent:
         checks.append(GrahamCheck(
             "2. Solidità Finanziaria",
             cond_strong,
-            f"Current Ratio: {curr_ratio:.2f} (Target 2.0) | Debito < Working Capital: {'SI' if self.d.long_term_debt <= working_capital else 'NO'}"
+            f"Current Ratio: {curr_ratio:.2f} (Target 2.0) | Working Capital > Fin. Debt: {'SI' if self.d.long_term_debt <= working_capital else 'NO'}"
         ))
+
+        # Check Interest Coverage (non strettamente Cap. 14 ma vitale per bond analysis)
+        int_coverage = self.d.operating_income / self.d.interest_charges if self.d.interest_charges > 0 else 999.0
+        # Graham consigliava 7x-10x per i bond a seconda del tipo
+        
+        # Debito Finanziario Totale
+        fin_debt_ratio = self.d.long_term_debt / (self.d.long_term_debt + equity) if (self.d.long_term_debt + equity) > 0 else 0.0
+
 
         # 3. Stabilità degli Utili 
         # "Alcuni guadagni per le azioni ordinarie in ciascuno degli ultimi dieci anni"
@@ -128,9 +136,19 @@ class GrahamAgent:
         
         Giudizio: {"SOTTOVALUTATA (Bargain)" if self.d.current_market_price < ((working_capital - self.d.long_term_debt) / self.d.shares_outstanding) else "Prezzo superiore al valore di liquidazione netto."}
         ------------------------------------------------
+        
+        [STRUTTURA DEL CAPITALE - EXTRA]
+        Interest Coverage: {int_coverage:.1f}x {"(Debt Free ??)" if int_coverage > 900 else ""}
+        Incidenza Debito Finanziario (Bond/Prestiti): {fin_debt_ratio*100:.1f}%
+        
+        Nota Leasing (Retail/Tech):
+        Oltre al debito finanziario (${self.d.long_term_debt/1e6:.1f}M), l'azienda ha
+        obbligazioni di leasing per ${self.d.capital_lease_obligations/1e6:.1f}M.
+        Questi sono costi operativi e NON contano come Funded Debt per Graham.
+        ------------------------------------------------
         Note:
         - Il P/E è calcolato sulla media degli utili a 3 anni (ove disp.) come raccomandato a pag. 410.
-        - Il limite di debito per l'investitore difensivo è severo: deve essere inferiore al capitale circolante.
+        - Il limite di debito per l'investitore difensivo considera SOLO il Debito Finanziario (Bonds), escludendo i Leasing.
         """
         
         return report

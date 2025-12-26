@@ -15,6 +15,7 @@ class FinancialData:
     intangible_assets: float
     total_liabilities: float
     long_term_debt: float 
+
     
     # Capitale
     preferred_stock: float
@@ -37,6 +38,8 @@ class FinancialData:
     # Mercato
     shares_outstanding: float
     current_market_price: float
+    
+    capital_lease_obligations: float = 0.0 # Valore predefinito se non estratto 
 
     def __post_init__(self):
         # Fix segni e valori
@@ -45,3 +48,4 @@ class FinancialData:
         self.current_market_price = abs(self.current_market_price)
         self.shares_outstanding = abs(self.shares_outstanding)
         self.long_term_debt = abs(self.long_term_debt)
+        self.capital_lease_obligations = abs(self.capital_lease_obligations)
