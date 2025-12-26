@@ -13,7 +13,7 @@ mypy
 pytest
 
 # --- Dipendenze AI ---
-google-genai
+google-genai # New SDK (Force Rebuild)
 ollama
 groq
 
