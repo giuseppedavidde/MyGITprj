@@ -294,8 +294,17 @@ class AIProvider:
         self.provider_type = provider_type.lower()
         self.target_model = model_name
         
-        # Gestione API Key: Priorità a quella passata, poi Env
-        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
+        # Recupero chiave dai Secrets (se disponibile in ambiente Streamlit)
+        secret_key = None
+        try:
+            import streamlit as st
+            # Usa get per evitare errori se la chiave non esiste
+            secret_key = st.secrets.get("GOOGLE_API_KEY", None)
+        except (ImportError, FileNotFoundError, AttributeError):
+            pass
+
+        # Gestione API Key: Priorità a quella passata, poi Secrets, poi Env
+        self.api_key = api_key or secret_key or os.getenv("GOOGLE_API_KEY")
         
         self.debug_mode = os.getenv("AI_DEBUG", "true").lower() == "true"
         

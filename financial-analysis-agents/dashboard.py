@@ -63,6 +63,18 @@ def plot_price_chart(ticker_symbol):
 
 st.sidebar.header("🧠 Cervello AI")
 
+# --- FUNZIONE HELPER PER LE CHIAVI ---
+def get_secret_key(key_name):
+    """Cerca la chiave prima nei secrets di Streamlit, poi nell'ambiente locale."""
+    try:
+        # Tenta di leggere da .streamlit/secrets.toml (o Secrets su Cloud)
+        if key_name in st.secrets:
+            return st.secrets[key_name]
+    except (FileNotFoundError, KeyError):
+        pass
+    # Fallback su variabili d'ambiente (.env locale)
+    return os.getenv(key_name)
+
 # Selezione Provider
 provider_options = ["Google Gemini", "Groq (Veloce)", "DeepSeek (Economico)", "Ollama (Locale)"]
 # Usiamo index=0 (Gemini) come default
@@ -72,7 +84,6 @@ api_key = None
 selected_model = None
 provider_code = "gemini"
 
-# Logica specifica per ogni provider
 # Logica specifica per ogni provider
 # Wrapper Caching per Streamlit (evita chiamate API ad ogni rerun)
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -85,7 +96,7 @@ def get_cached_groq_models(api_key):
     
 if "Gemini" in provider_selection:
     provider_code = "gemini"
-    env_key = os.getenv("GOOGLE_API_KEY")
+    env_key = get_secret_key("GOOGLE_API_KEY") # <--- MODIFICATO
     user_key = st.sidebar.text_input("Gemini API Key", value=env_key or "", type="password")
     api_key = user_key if user_key else None
     
@@ -110,7 +121,7 @@ if "Gemini" in provider_selection:
 
 elif "Groq" in provider_selection:
     provider_code = "groq"
-    env_key = os.getenv("GROQ_API_KEY")
+    env_key = get_secret_key("GROQ_API_KEY") # <--- MODIFICATO
     user_key = st.sidebar.text_input("Groq API Key", value=env_key or "", type="password")
     api_key = user_key if user_key else None
     
@@ -133,7 +144,7 @@ elif "Groq" in provider_selection:
 elif "DeepSeek" in provider_selection:
     provider_code = "deepseek"
     selected_model = "deepseek-chat"
-    env_key = os.getenv("DEEPSEEK_API_KEY")
+    env_key = get_secret_key("DEEPSEEK_API_KEY") # <--- MODIFICATO
     user_key = st.sidebar.text_input("DeepSeek API Key", value=env_key or "", type="password")
     api_key = user_key if user_key else None
 
