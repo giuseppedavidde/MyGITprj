@@ -362,15 +362,12 @@ class AIProvider:
                 if "gemini" in m.name and "embedding" not in m.name:
                     # Rimuoviamo il prefisso models/ per pulizia, se presente, 
                     # ma la SDK accetta anche con models/ solitamente.
-                    # Per la UI è meglio senza. Ma poi bisogna rimetterlo?
-                    # La nuova SDK restituisce `models/gemini-1.5-flash`.
-                    # Se lo passiamo alla generate_content, funziona?
                     # Solitamente si. Teniamo il nome completo per sicurezza.
                     models.append(m.name)
             return sorted(models, reverse=True)
         except Exception as e:
-            print(f"⚠️ Errore listing Gemini: {e}")
-            return []
+            # Propaghiamo l'errore per vederlo nella Dashboard
+            raise e
 
     @staticmethod
     def get_groq_models(api_key: Optional[str] = None) -> List[str]:

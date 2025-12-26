@@ -105,8 +105,8 @@ if "Gemini" in provider_selection:
                 selected_model = st.sidebar.selectbox("Scegli Modello Gemini:", gemini_models, index=default_ix, key="gemini_model_select")
             else:
                  st.sidebar.warning("Nessun modello Gemini trovato o Key invalida.")
-        except Exception:
-             st.sidebar.caption("Impossibile caricare lista modelli.")
+        except Exception as e:
+             st.sidebar.error(f"Errore recupero modelli: {e}")
 
 elif "Groq" in provider_selection:
     provider_code = "groq"
