@@ -281,8 +281,8 @@ class AIProvider:
     """Factory per modelli AI (Cloud/Local) con Caching."""
     
     DOCS_URL = "https://ai.google.dev/gemini-api/docs/models?hl=it"
-    # Fallback solidi per Gemini
-    FALLBACK_ORDER = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"]
+    # Fallback solidi per Gemini: Rimosso 2.0-flash per instabilità (429 errors)
+    FALLBACK_ORDER = ["gemini-3-pro-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro","gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro"]
     
     _cached_chain: Optional[List[str]] = None
     _last_scrape_time: float = 0
