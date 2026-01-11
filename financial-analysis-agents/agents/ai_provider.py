@@ -358,25 +358,34 @@ class AIProvider:
     
     @staticmethod
     def get_gemini_models(api_key: Optional[str] = None) -> List[str]:
-        """Recupera la lista dei modelli Gemini disponibili."""
+        """Recupera la lista dei modelli Gemini disponibili, con fallback statico robusto."""
         # Usa key passata o env
         key = api_key or os.getenv("GOOGLE_API_KEY")
-        if not key or not GOOGLE_GENAI_AVAILABLE:
-            return []
+        
+        # 1. Se SDK non disponibile, fallback immediato
+        if not GOOGLE_GENAI_AVAILABLE:
+            return AIProvider.FALLBACK_ORDER
+
         try:
+            # 2. Se key mancante, fallback (permetti selezione UI)
+            if not key:
+                return AIProvider.FALLBACK_ORDER
+                
             client = genai.Client(api_key=key)
             models = []
             for m in client.models.list():
                 # Filtra modelli validi (che contengono 'gemini' e non 'embedding')
                 if "gemini" in m.name and "embedding" not in m.name:
-                    # Rimuoviamo il prefisso models/ per pulizia, se presente, 
-                    # ma la SDK accetta anche con models/ solitamente.
-                    # Solitamente si. Teniamo il nome completo per sicurezza.
                     models.append(m.name)
+            
+            if not models:
+                 return AIProvider.FALLBACK_ORDER
+                 
             return sorted(models, reverse=True)
         except Exception as e:
-            # Propaghiamo l'errore per vederlo nella Dashboard
-            raise e
+            # 3. Su errore API (es. Key Invalida, Quota, Connection), fallback silenzioso
+            print(f"⚠️ Errore listing Gemini API: {e}. Uso lista statica.")
+            return AIProvider.FALLBACK_ORDER
 
     @staticmethod
     def get_groq_models(api_key: Optional[str] = None) -> List[str]:
