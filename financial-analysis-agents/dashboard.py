@@ -200,6 +200,39 @@ audit_mode_ui = st.sidebar.radio(
     help="Rapido: Verifica solo errori evidenti.\nCompleto: Verifica web aggressiva su più campi."
 )
 
+# --- NUOVA SEZIONE: Libreria (Knowledge Base) ---
+from agents.knowledge_base import KnowledgeBase
+kb = KnowledgeBase()
+
+with st.sidebar.expander("📚 Libreria (Evoluzione AI)", expanded=False):
+    st.caption("Carica libri/documenti per insegnare nuove strategie all'agente.")
+    
+    # Uploader
+    uploaded_docs = st.file_uploader(
+        "Aggiungi conoscenza (.txt, .pdf)", 
+        type=['txt', 'pdf'], 
+        accept_multiple_files=True,
+        key="kb_uploader"
+    )
+    
+    if uploaded_docs:
+        for doc in uploaded_docs:
+            res = kb.save_document(doc)
+            st.success(res)
+            
+    # Lista file attuali
+    current_files = kb.list_documents()
+    if current_files:
+        st.caption(f"📚 {len(current_files)} documenti in memoria.")
+        st.code("\n".join(current_files), language="text")
+        
+        if st.button("🗑️ Svuota Libreria"):
+            kb.clear_database()
+            st.warning("Libreria svuotata.")
+            st.rerun()
+    else:
+        st.info("Libreria vuota. L'agente userà solo strategie base.")
+
 # --- 3. CHAT ASSISTANT (Sidebar Bottom) ---
 st.sidebar.divider()
 st.sidebar.header("💬 Chat Analyst")
@@ -360,7 +393,13 @@ if run_btn:
                 
                 # Creazione oggetti modello
                 fin_obj = FinancialData(**financial_data)
-                graham_agent = GrahamAgent(fin_obj)
+                
+                # Istanza AI Provider per evoluzione (se disponibile)
+                graham_ai_provider = None
+                if api_key or provider_code == "ollama":
+                     graham_ai_provider = AIProvider(api_key=api_key, provider_type=provider_code, model_name=selected_model)
+
+                graham_agent = GrahamAgent(fin_obj, ai_provider=graham_ai_provider, knowledge_base=kb)
                 report_text = graham_agent.analyze()
                 
                 # Completamento

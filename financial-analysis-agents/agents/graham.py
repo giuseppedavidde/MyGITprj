@@ -1,8 +1,12 @@
 """
 Modulo per l'analisi fondamentale: Integrazione 'L'Investitore Intelligente'.
 """
+from typing import Optional
 from dataclasses import dataclass
 from models.data_schema import FinancialData
+# Import lazy per evitare cicli se non necessario, ma qui ci serve per type hint
+# from agents.ai_provider import AIProvider 
+# from agents.knowledge_base import KnowledgeBase
 
 @dataclass
 class GrahamCheck:
@@ -14,9 +18,12 @@ class GrahamCheck:
 class GrahamAgent:
     """
     Analista che implementa le strategie de 'L'Investitore Intelligente' (Cap. 14).
+    Ora potenziato da AI per evolvere le strategie con nuova conoscenza.
     """
-    def __init__(self, data: FinancialData):
+    def __init__(self, data: FinancialData, ai_provider=None, knowledge_base=None):
         self.d = data
+        self.ai = ai_provider
+        self.kb = knowledge_base
 
     def analyze(self) -> str:
         """Genera il report completo."""
@@ -173,4 +180,43 @@ class GrahamAgent:
         - Il limite di debito per l'investitore difensivo considera SOLO il Debito Finanziario (Bonds), escludendo i Leasing.
         """
         
+        # --- SEZIONE EVOLUTIVA (AI + KNOWLEDGE) ---
+        if self.ai and self.kb:
+            report += "\n\n🧠 --- INSIGHT EVOLUTIVI (DAI TUOI LIBRI/DOCS) ---\n"
+            report += "Sto consultando la tua libreria personale per affinare l'analisi...\n"
+            
+            try:
+                # 1. Recupera Contesto
+                context = self.kb.get_context()
+                if not context:
+                    report += "⚠️ Nessun documento trovato nella Knowledge Base. Carica libri o appunti per 'evolvere'."
+                else:
+                    # 2. Costruisci Prompt
+                    prompt = f"""
+                    Sei GrahamGPT, un'evoluzione dell'analista Ben Graham.
+                    
+                    DATI AZIENDALI:
+                    - P/E: {pe_ratio:.2f}
+                    - P/B: {pb_ratio:.2f}
+                    - Debt/Equity: {fin_debt_ratio:.2f}
+                    - Current Ratio: {curr_ratio:.2f}
+                    - Graham Number Check: {graham_number_val:.2f} (Target 22.5)
+                    - Net Income: {self.d.net_income}
+                    
+                    CONOSCENZA AGGIUNTIVA DALLA LIBRERIA UTENTE:
+                    {context[:15000]}  # Tronchiamo per evitare overflow token
+                    
+                    RICHIESTA:
+                    Analizza questi dati alla luce della "Conoscenza Aggiuntiva" fornita.
+                    Se trovi regole, eccezioni o sfumature nei documenti caricati che si applicano a questo caso, citalie e usale per dare un giudizio più evoluto.
+                    Sii conciso, diretto e cita la fonte se possibile (es. "Come menzionato nel documento X...").
+                    Se i documenti non aggiungono nulla di specifico, dai un consiglio di investimento generale basato sui dati.
+                    """
+                    
+                    # 3. Genera
+                    resp = self.ai.get_model().generate_content(prompt)
+                    report += resp.text
+            except Exception as e:
+                report += f"❌ Errore durante l'evoluzione AI: {e}"
+
         return report

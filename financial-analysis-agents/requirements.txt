@@ -36,3 +36,6 @@ ddgs
 # --- Interfaccia Grafica Utente (GUI) ---
 streamlit
 plotly
+
+# --- Elaborazione Documenti ---
+pypdf
