@@ -200,6 +200,105 @@ audit_mode_ui = st.sidebar.radio(
     help="Rapido: Verifica solo errori evidenti.\nCompleto: Verifica web aggressiva su più campi."
 )
 
+# --- 3. CHAT ASSISTANT (Sidebar Bottom) ---
+st.sidebar.divider()
+st.sidebar.header("💬 Chat Analyst")
+
+# Per la chat usiamo un'istanza di AIProvider dedicata, basata sulla selezione corrente
+# Nota: La main dashboard usa istanze 'Agent' che creano provider internamente, 
+# qui lo creiamo esplicitamente per la chat generica.
+if "chat_provider" not in st.session_state:
+    st.session_state.chat_provider = None
+
+# Init Chat History
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+with st.sidebar.expander("Assistant", expanded=True):
+    # Se il provider è configurato (api_key presente o provider locale)
+    chat_ready = False
+    if provider_code == "ollama" and OLLAMA_AVAILABLE:
+        chat_ready = True
+    elif api_key:
+        chat_ready = True
+    
+    if chat_ready:
+         # Istanzia/Aggiorna provider se cambiato (semplificato: ricrea se necessario o usa cache?)
+         # Per semplicità lo ricreiamo al volo se serve, o salviamo in session state
+         # Ma attenzione al reload.
+         pass
+    
+    # 1. Visualizza Messaggi
+    if st.button("🗑️ Reset Chat", key="reset_chat_sidebar"):
+        st.session_state.chat_history = []
+        st.rerun()
+
+    for msg in st.session_state.chat_history:
+        # Mini chat view in sidebar
+        with st.chat_message(msg["role"]):
+             st.write(msg["content"])
+             
+    # 2. File Uploader
+    uploaded_files = st.file_uploader(
+        "Allega file", 
+        type=['png', 'jpg', 'jpeg', 'pdf'], 
+        accept_multiple_files=True,
+        key="chat_files_dashboard"
+    )
+
+    # 3. Input
+    if user_input := st.chat_input("Chiedi al Graham Analyst...", key="chat_input_dashboard"):
+        # Aggiungi a cronologia
+        display_msg = user_input
+        if uploaded_files:
+            display_msg += f"\n\n📎 *{len(uploaded_files)} file allegati*"
+        
+        st.session_state.chat_history.append({"role": "user", "content": display_msg})
+        with st.chat_message("user"):
+            st.write(display_msg)
+            
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing..."):
+                try:
+                    # Crea Provider al volo con la config corrente
+                    current_provider = AIProvider(
+                        api_key=api_key,
+                        provider_type=provider_code,
+                        model_name=selected_model
+                    )
+                    
+                    # Context Prompt
+                    # Se c'è un'analisi visualizzata, potremmo volerla passare?
+                    # Per ora chat generica + file
+                    system_msg = "Sei un assistente analista finanziario. Rispondi in modo professionale."
+                    
+                    final_prompt_text = f"{system_msg}\n\nDOMANDA UTENTE: {user_input}"
+                    
+                    # Multimodal Construction
+                    final_prompt = [final_prompt_text]
+                    if uploaded_files:
+                         for uploaded_file in uploaded_files:
+                                bytes_data = uploaded_file.getvalue()
+                                mime_type = uploaded_file.type
+                                final_prompt.append({
+                                    "mime_type": mime_type,
+                                    "data": bytes_data
+                                })
+                    
+                    if len(final_prompt) == 1:
+                        final_prompt = final_prompt[0]
+                        
+                    stream = current_provider.get_model().generate_stream(final_prompt)
+                    response = st.write_stream(stream)
+                    st.session_state.chat_history.append({"role": "assistant", "content": response})
+                    
+                except Exception as e:
+                    st.error(f"Error: {e}")
+    
+    if not chat_ready:
+        st.caption("⚠️ Configura API Key/Provider sopra per chattare.")
+
+
 # --- INTERFACCIA PRINCIPALE ---
 
 st.title("🧐 Graham AI Analyst")
