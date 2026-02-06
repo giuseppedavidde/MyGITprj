@@ -4,3 +4,10 @@ modules/__init__.py
 *.png
 */*.pdf*
 *.pdf*
+ETF_Austria_Tax_Calculator/
+
+Mexem_Tax_Report/
+
+Data_for_Analysis/
+StreamLitPrj/
+Tax_Austria_Calculator/
